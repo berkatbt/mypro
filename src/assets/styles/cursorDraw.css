@@ -1,0 +1,176 @@
+/**
+ * cursorDraw styles
+ * Layer tinta (SVG) + kursor kolaborator yang menggambar elemen halaman
+ * saat scroll. Semua elemen overlay bersifat pointer-events: none, jadi
+ * tidak mengganggu interaksi dan tidak mengubah layout halaman.
+ */
+
+.cd-draw-stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 45;
+  contain: style;
+  --cd-ink-color: rgba(255, 255, 255, 0.66);
+  --cd-ink-width: 1.25px;
+}
+
+.cd-draw-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.cd-draw-ink {
+  fill: none;
+  stroke: var(--cd-ink-color);
+  stroke-width: var(--cd-ink-width);
+  stroke-linecap: butt;
+  stroke-linejoin: round;
+  opacity: 1;
+  transition: opacity 0.4s ease;
+}
+
+/* ------------------------------------------------------------------ */
+/* Kursor kolaborator                                                 */
+/* ------------------------------------------------------------------ */
+
+.cd-draw-cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: flex-start;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform;
+  transition: opacity 0.22s ease;
+  z-index: 2;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5));
+}
+
+.cd-draw-cursor.cd-is-on {
+  opacity: 1;
+}
+
+.cd-draw-cursor-pointer {
+  flex-shrink: 0;
+  color: var(--cd-cursor-color, #f8fafc);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+}
+
+.cd-draw-cursor-label {
+  margin-left: 2px;
+  margin-top: 13px;
+  padding: 3.5px 7.5px;
+  border-radius: 4px;
+  background: var(--cd-cursor-color, #f8fafc);
+  color: var(--cd-cursor-text, #050505);
+  font-family: var(--font-body), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    sans-serif;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  user-select: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* Caret berkedip saat kursor sedang "mengetik" teks */
+.cd-draw-caret {
+  position: absolute;
+  left: -1px;
+  top: -17px;
+  width: 2px;
+  height: 16px;
+  border-radius: 1px;
+  background: var(--cd-cursor-color, #f8fafc);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cd-draw-cursor.cd-typing .cd-draw-caret {
+  animation: cd-caret-blink 1s steps(1, end) infinite;
+}
+
+@keyframes cd-caret-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cd-draw-caret {
+    animation: none !important;
+  }
+}
+
+/* Saat mengetik, label diletakkan di kiri-atas pena supaya tidak menutupi
+   huruf yang akan muncul berikutnya */
+.cd-draw-cursor.cd-typing .cd-draw-cursor-label {
+  position: absolute;
+  left: auto;
+  right: 12px;
+  top: -14px;
+  margin: 0;
+}
+
+/* Saat mengetik di dekat tepi kiri, label pindah ke kanan pena */
+.cd-draw-cursor.cd-typing.cd-flip-left .cd-draw-cursor-label {
+  right: auto;
+  left: 12px;
+}
+
+/* Di dekat tepi kanan layar, label dibalik supaya tidak terpotong */
+.cd-draw-cursor.cd-flip-x {
+  flex-direction: row-reverse;
+}
+
+.cd-draw-cursor.cd-flip-x .cd-draw-cursor-label {
+  margin-left: 0;
+  margin-right: 2px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Aksesibilitas                                                      */
+/* ------------------------------------------------------------------ */
+
+@media (max-width: 640px), (max-height: 420px) {
+  .cd-draw-cursor-label {
+    font-size: 9.5px;
+    padding: 3px 6px;
+  }
+
+  .cd-draw-caret {
+    height: 14px;
+    top: -15px;
+  }
+}
+
+/* Layar sentuh: shadow berlebih dibuang supaya lebih ringan */
+@media (pointer: coarse) {
+  .cd-draw-cursor {
+    filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cd-draw-stage {
+    display: none !important;
+  }
+}
