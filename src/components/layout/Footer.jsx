@@ -1,6 +1,6 @@
 import { Heart } from "lucide-react"
-import Github from "../ui/GithubIcon"
 import { profile } from "../../data/profile"
+import SocialLinks from "../ui/SocialLinks"
 
 export default function Footer() {
   return (
@@ -15,14 +15,7 @@ export default function Footer() {
           React & Motion
         </div>
 
-        <a
-          href={profile.github}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="GitHub"
-          className="text-slate-400 hover:text-accent">
-          <Github size={20} />
-        </a>
+        <SocialLinks size={20} />
       </div>
     </footer>
   )

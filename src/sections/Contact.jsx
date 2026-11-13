@@ -5,6 +5,7 @@ import { profile } from "../data/profile"
 import GlowButton from "../components/ui/GlowButton"
 import Github from "../components/ui/GithubIcon"
 import SectionHeading from "../components/ui/SectionHeading"
+import SocialLinks from "../components/ui/SocialLinks"
 import { Reveal } from "../components/ui/Reveal"
 
 export default function Contact() {
@@ -58,6 +59,14 @@ export default function Contact() {
               <span className="inline-flex items-center gap-2 text-xs tracking-[0.2em] text-slate-400 uppercase">
                 <MapPin size={14} /> {profile.location}
               </span>
+            </div>
+
+            {/* Social Links */}
+            <div className="mt-8">
+              <p className="mb-4 text-xs font-semibold tracking-[0.3em] text-slate-500 uppercase">
+                Connect with me
+              </p>
+              <SocialLinks size={22} />
             </div>
           </Reveal>
 

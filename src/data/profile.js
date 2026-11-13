@@ -9,7 +9,13 @@ export const profile = {
 
   location: "Semarang, Indonesia",
   education: "SMK Bagimu Negeriku — Software Engineering (RPL)",
+  
+  // Social Media Links
   github: "https://github.com/berkatbt",
+  linkedin: "https://linkedin.com/in/berkatbt", // Update dengan username LinkedIn kamu
+  instagram: "https://instagram.com/berkat_bt16", // Update dengan username Instagram kamu
+  twitter: "https://twitter.com/berkatbt", // Optional: Update jika ada
+  email: "berkat@example.com", // Update dengan email kamu
 
   quote: "Jangan takut melangkah, karena setiap langkah kecil adalah bagian dari mimpi besar.",
   verse: "Yeremia 29:11",

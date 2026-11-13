@@ -352,6 +352,7 @@ export function initCursorDraw(userConfig = {}) {
   let lastScrollY = window.scrollY || 0;
   let resizeTimer = 0;
   let scanTimer = 0;
+  let settleTimer = 0;
   let scrollCheck = 0;
   let lastViewportWidth = window.innerWidth;
 
@@ -1149,6 +1150,27 @@ export function initCursorDraw(userConfig = {}) {
     syncStageSize();
   }
 
+  /**
+   * Setelah scroll berhenti (atau lompat ke anchor), selesaikan elemen yang
+   * terlihat supaya tidak ada konten yang tertahan setengah tergambar.
+   */
+  function finishVisibleItems() {
+    const now = performance.now();
+    const scrollY = window.scrollY || 0;
+    const viewportHeight = window.innerHeight;
+
+    for (const item of items) {
+      if (item.disabled || item.boot || item.locked || item.finishStart) continue;
+      if (item.p <= 0.002 || item.p >= 0.999) continue;
+      if (!isOnScreen(item, scrollY, viewportHeight)) continue;
+
+      item.finishStart = now;
+      item.finishFrom = item.p;
+    }
+
+    schedule();
+  }
+
   function startBootSequence() {
     const viewportHeight = window.innerHeight;
     const scrollY = window.scrollY || 0;
@@ -1228,6 +1250,13 @@ export function initCursorDraw(userConfig = {}) {
   function onScroll() {
     schedule();
 
+    // Saat scroll berhenti, tuntaskan gambar yang sedang berjalan.
+    if (settleTimer) window.clearTimeout(settleTimer);
+    settleTimer = window.setTimeout(() => {
+      settleTimer = 0;
+      if (!destroyed) finishVisibleItems();
+    }, 320);
+
     // Sesekali cek apakah tinggi dokumen berubah (font/gambar lazy load)
     scrollCheck += 1;
     if (scrollCheck % 30 === 0) {
@@ -1293,6 +1322,7 @@ export function initCursorDraw(userConfig = {}) {
     if (bootstrapTimer) window.clearTimeout(bootstrapTimer);
     if (resizeTimer) window.clearTimeout(resizeTimer);
     if (scanTimer) window.clearTimeout(scanTimer);
+    if (settleTimer) window.clearTimeout(settleTimer);
 
     window.removeEventListener("scroll", onScroll);
     window.removeEventListener("resize", onResize);
