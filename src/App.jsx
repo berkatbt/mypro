@@ -1,19 +1,21 @@
-import { useLayoutEffect, useEffect } from "react"
+import { useEffect } from "react"
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom"
 import Navbar from "./components/layout/Navbar"
 import Footer from "./components/layout/Footer"
-import ScrollProgress from "./components/ui/ScrollProgress"
-import Hero from "./sections/Hero"
-import About from "./sections/About"
-import Skills from "./sections/Skills"
-import Projects from "./sections/Projects"
-import Initiatives from "./sections/Initiatives"
-import Contact from "./sections/Contact"
-import { initCursorDraw } from "./lib/cursorDraw"
+import Home from "./pages/Home"
+import Games from "./pages/Games"
 
-export default function App() {
-  // Animasi pena menggambar halaman (intro + mengikuti scroll dua arah)
-  useLayoutEffect(() => initCursorDraw(), [])
+function ScrollToTop() {
+  const { pathname } = useLocation()
 
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [pathname])
+
+  return null
+}
+
+function App() {
   // Console Easter Egg
   useEffect(() => {
     const styles = [
@@ -96,20 +98,20 @@ export default function App() {
   }, [])
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-background text-text-main">
-      <ScrollProgress />
-      <Navbar />
+    <BrowserRouter>
+      <ScrollToTop />
+      <div className="min-h-screen overflow-x-hidden bg-background text-text-main">
+        <Navbar />
 
-      <main>
-        <Hero />
-        <About />
-        <Skills />
-        <Projects />
-        <Initiatives />
-        <Contact />
-      </main>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/games" element={<Games />} />
+        </Routes>
 
-      <Footer />
-    </div>
+        <Footer />
+      </div>
+    </BrowserRouter>
   )
 }
+
+export default App

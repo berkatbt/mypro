@@ -60,6 +60,24 @@ export default function About() {
         </div>
 
         <StaggerGroup className="flex flex-col gap-5 lg:pt-24" stagger={0.12}>
+          {/* Profile Image Card */}
+          <motion.div variants={staggerItem} className="glass overflow-hidden rounded-2xl p-6 md:p-7">
+            <div className="relative mx-auto h-48 w-48 sm:h-56 sm:w-56">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/10 to-white/5 blur-xl" />
+              <img
+                src="/profile-placeholder.svg"
+                alt={`${profile.firstName} profile`}
+                className="relative h-full w-full rounded-full border-2 border-white/10 object-cover"
+              />
+            </div>
+            <p className="mt-5 text-center text-sm font-semibold text-white">
+              {profile.name}
+            </p>
+            <p className="mt-1 text-center text-xs text-slate-400">
+              {profile.headline}
+            </p>
+          </motion.div>
+
           <motion.div variants={staggerItem} className="glass rounded-2xl p-6 md:p-7">
             <div className="grid grid-cols-3 gap-4 border-b border-white/10 pb-6">
               {stats.map((stat) => (

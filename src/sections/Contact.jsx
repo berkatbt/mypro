@@ -6,6 +6,7 @@ import GlowButton from "../components/ui/GlowButton"
 import Github from "../components/ui/GithubIcon"
 import SectionHeading from "../components/ui/SectionHeading"
 import SocialLinks from "../components/ui/SocialLinks"
+import ContactForm from "../components/ui/ContactForm"
 import { Reveal } from "../components/ui/Reveal"
 
 export default function Contact() {
@@ -36,7 +37,7 @@ export default function Contact() {
         className="pointer-events-none absolute -bottom-24 left-1/2 h-80 w-[36rem] -translate-x-1/2 rounded-full bg-white/[0.05] blur-3xl"
       />
 
-      <div className="relative mx-auto grid w-full max-w-7xl gap-14 lg:grid-cols-[1fr_0.85fr] lg:gap-20">
+      <div className="relative mx-auto grid w-full max-w-7xl gap-14 lg:grid-cols-2 lg:gap-20">
         <div>
           <SectionHeading
             index="05"
@@ -78,39 +79,34 @@ export default function Contact() {
           </Reveal>
         </div>
 
-        <Reveal delay={0.18} className="lg:pt-24">
-          <div className="glass relative overflow-hidden rounded-2xl p-7">
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute -top-16 -right-16 h-40 w-40 rounded-full bg-white/[0.06] blur-2xl"
-            />
+        {/* Contact Form */}
+        <div>
+          <ContactForm />
 
-            <p className="text-[10px] font-semibold tracking-[0.35em] text-slate-500 uppercase">
-              Personal Vision
-            </p>
-            <p className="mt-4 text-sm leading-8 text-slate-300">{profile.vision}</p>
+          <Reveal delay={0.28} className="mt-6">
+            <div className="glass relative overflow-hidden rounded-2xl p-6">
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute -top-16 -right-16 h-40 w-40 rounded-full bg-white/[0.06] blur-2xl"
+              />
 
-            <div className="mt-7 border-t border-white/10 pt-6">
               <p className="text-[10px] font-semibold tracking-[0.35em] text-slate-500 uppercase">
-                A Note To Myself
+                Personal Vision
               </p>
-              <p className="mt-3 text-sm leading-7 text-slate-400">
-                &ldquo;{profile.quote}&rdquo;
-              </p>
-              <p className="mt-3 text-xs font-semibold text-accent">— {profile.verse}</p>
-            </div>
+              <p className="mt-3 text-sm leading-7 text-slate-300">{profile.vision}</p>
 
-            <a
-              href={profile.github}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-7 flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-300 transition-all duration-300 hover:border-white/30 hover:bg-white/[0.06] hover:text-white"
-            >
-              <Github size={18} />
-              {profile.github.replace("https://", "")}
-            </a>
-          </div>
-        </Reveal>
+              <div className="mt-6 border-t border-white/10 pt-5">
+                <p className="text-[10px] font-semibold tracking-[0.35em] text-slate-500 uppercase">
+                  A Note To Myself
+                </p>
+                <p className="mt-3 text-sm leading-6 text-slate-400">
+                  &ldquo;{profile.quote}&rdquo;
+                </p>
+                <p className="mt-2 text-xs font-semibold text-accent">— {profile.verse}</p>
+              </div>
+            </div>
+          </Reveal>
+        </div>
       </div>
     </section>
   )

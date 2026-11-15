@@ -1,18 +1,21 @@
 import { useEffect, useState } from "react"
 import { motion, AnimatePresence, useScroll, useSpring } from "motion/react"
-import { Menu, X, Download } from "lucide-react"
+import { Menu, X, Gamepad2 } from "lucide-react"
+import { Link, useLocation } from "react-router-dom"
 
 const links = [
-  { label: "Home", href: "#home" },
-  { label: "About", href: "#about" },
-  { label: "Skills", href: "#skills" },
-  { label: "Projects", href: "#projects" },
-  { label: "Contact", href: "#contact" },
+  { label: "Home", href: "#home", route: "/" },
+  { label: "About", href: "#about", route: "/" },
+  { label: "Skills", href: "#skills", route: "/" },
+  { label: "Projects", href: "#projects", route: "/" },
+  { label: "Games", href: "/games", route: "/games", isRoute: true },
+  { label: "Contact", href: "#contact", route: "/" },
 ]
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [open, setOpen] = useState(false)
+  const location = useLocation()
   const { scrollYProgress } = useScroll()
   const progress = useSpring(scrollYProgress, {
     stiffness: 140,
@@ -27,6 +30,13 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", onScroll)
   }, [])
 
+  const isActive = (link) => {
+    if (link.isRoute) {
+      return location.pathname === link.route
+    }
+    return location.pathname === "/"
+  }
+
   return (
     <motion.header
       initial={{ y: -70, opacity: 0 }}
@@ -37,7 +47,7 @@ export default function Navbar() {
       }`}
     >
       <nav className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 md:px-8">
-        <a href="#home" className="flex items-center gap-3">
+        <Link to="/" className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/15 bg-white/5 shadow-[0_0_18px_rgba(255,255,255,0.08)]">
             <img
               src="/logo.png"
@@ -51,27 +61,40 @@ export default function Navbar() {
           <span className="font-display text-xl font-bold text-white">
             Berkat<span className="text-accent">.</span>
           </span>
-        </a>
+        </Link>
 
         <div className="hidden items-center gap-9 md:flex">
-          {links.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              className="text-sm font-medium text-slate-300 transition-colors hover:text-accent">
-              {link.label}
-            </a>
-          ))}
+          {links.map((link) => {
+            const active = isActive(link)
+            
+            if (link.isRoute) {
+              return (
+                <Link
+                  key={link.href}
+                  to={link.href}
+                  className={`flex items-center gap-1.5 text-sm font-medium transition-colors ${
+                    active ? "text-accent" : "text-slate-300 hover:text-accent"
+                  }`}
+                >
+                  {link.label === "Games" && <Gamepad2 size={16} />}
+                  {link.label}
+                </Link>
+              )
+            }
+            
+            return (
+              <a
+                key={link.href}
+                href={link.href}
+                className={`text-sm font-medium transition-colors ${
+                  active ? "text-slate-300 hover:text-accent" : "text-slate-300 hover:text-accent"
+                }`}
+              >
+                {link.label}
+              </a>
+            )
+          })}
         </div>
-
-        <a
-          href="/cv.pdf"
-          download
-          className="hidden items-center gap-2 rounded-lg border border-white/30 px-4 py-2.5 text-sm text-white transition-all hover:border-white/60 hover:bg-white/10 hover:shadow-[0_0_20px_rgba(255,255,255,0.12)] lg:flex"
-        >
-          <Download size={17} />
-          Download CV
-        </a>
 
         <button
           type="button"
@@ -99,16 +122,36 @@ export default function Navbar() {
             className="glass overflow-hidden md:hidden"
           >
             <div className="flex flex-col gap-1 px-5 py-4">
-              {links.map((link) => (
-                <a
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setOpen(false)}
-                  className="rounded-lg px-3 py-3 text-sm text-slate-200 hover:bg-white/10"
-                >
-                  {link.label}
-                </a>
-              ))}
+              {links.map((link) => {
+                const active = isActive(link)
+                
+                if (link.isRoute) {
+                  return (
+                    <Link
+                      key={link.href}
+                      to={link.href}
+                      onClick={() => setOpen(false)}
+                      className={`flex items-center gap-2 rounded-lg px-3 py-3 text-sm hover:bg-white/10 ${
+                        active ? "text-accent" : "text-slate-200"
+                      }`}
+                    >
+                      {link.label === "Games" && <Gamepad2 size={16} />}
+                      {link.label}
+                    </Link>
+                  )
+                }
+                
+                return (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setOpen(false)}
+                    className="rounded-lg px-3 py-3 text-sm text-slate-200 hover:bg-white/10"
+                  >
+                    {link.label}
+                  </a>
+                )
+              })}
               <a href="/cv.pdf" download className="px-3 py-3 text-sm text-accent">
                 Download CV
               </a>

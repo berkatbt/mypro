@@ -59,7 +59,7 @@ export default function Skills() {
                   <Icon size={20} />
                 </span>
                 <span className="font-display text-xs font-semibold tracking-[0.3em] text-white/25">
-                  0{index + 1}
+                  {String(index + 1).padStart(2, "0")}
                 </span>
               </div>
 
