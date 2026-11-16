@@ -11,8 +11,15 @@ const gameCategories = [
     title: "Puzzle Games",
     description: "Tantang logika dan strategi kamu dengan berbagai puzzle menarik",
     icon: "🧩",
-    comingSoon: true,
-    games: [],
+    comingSoon: false,
+    games: [
+      {
+        name: "Neon Grid",
+        path: "/games/block-blast",
+        tag: "Baru 🔥",
+        desc: "Susun balok di grid 8x8, bersihkan garis, dan raih combo!",
+      },
+    ],
   },
   {
     id: 2,
@@ -42,7 +49,7 @@ const gameCategories = [
 
 const stats = [
   { icon: Gamepad2, value: "04", label: "Categories" },
-  { icon: Trophy, value: "00", label: "Games" },
+  { icon: Trophy, value: "01", label: "Games Available" },
   { icon: Star, value: "∞", label: "Fun Level" },
 ]
 
@@ -54,7 +61,7 @@ function GameCard({ category }) {
       transition={{ duration: 0.35 }}
       className="group relative flex h-full min-h-[280px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02] p-7 transition-colors duration-300 hover:border-white/25 hover:bg-white/[0.04]"
     >
-      <span className="absolute inset-x-0 top-0 h-px origin-left scale-x-0 bg-gradient-to-r from-transparent via-white/60 to-transparent transition-transform duration-700 group-hover:scale-x-100" />
+      <span className="absolute inset-x-0 top-0 h-px origin-left scale-x-0 bg-gradient-to-r from-transparent via-cyan-400 to-transparent transition-transform duration-700 group-hover:scale-x-100" />
 
       <div className="flex items-start justify-between">
         <span className="text-5xl transition-transform duration-300 group-hover:scale-110">
@@ -81,13 +88,26 @@ function GameCard({ category }) {
       )}
 
       {!category.comingSoon && category.games.length > 0 && (
-        <div className="mt-6 flex items-center justify-between">
-          <span className="text-xs text-slate-400">
-            {category.games.length} game{category.games.length > 1 ? "s" : ""} available
-          </span>
-          <span className="text-sm text-accent transition-transform duration-300 group-hover:translate-x-1">
-            →
-          </span>
+        <div className="mt-6 flex flex-col gap-2.5">
+          {category.games.map((game) => (
+            <Link
+              key={game.path}
+              to={game.path}
+              className="flex items-center justify-between rounded-xl border border-cyan-400/40 bg-cyan-950/30 px-4 py-2.5 text-xs font-semibold text-cyan-200 transition-all hover:border-cyan-300 hover:bg-cyan-900/50 hover:text-white hover:shadow-[0_0_16px_rgba(6,182,212,0.3)]"
+            >
+              <div className="flex items-center gap-2">
+                <span>{game.name}</span>
+                {game.tag && (
+                  <span className="rounded-full bg-cyan-400/20 px-2 py-0.5 text-[10px] text-cyan-300">
+                    {game.tag}
+                  </span>
+                )}
+              </div>
+              <span className="font-bold text-cyan-400 transition-transform group-hover:translate-x-1">
+                Mainkan →
+              </span>
+            </Link>
+          ))}
         </div>
       )}
     </motion.div>
@@ -180,6 +200,35 @@ export default function Games() {
         />
 
         <div className="relative mx-auto w-full max-w-7xl">
+          {/* Featured Game Hero Card */}
+          <Reveal className="mb-16">
+            <div className="relative overflow-hidden rounded-3xl border border-indigo-400/20 bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-[#050505] p-8 md:p-12 shadow-[0_0_50px_rgba(99,102,241,0.1)]">
+              <span className="absolute -right-10 -bottom-10 h-64 w-64 rounded-full bg-indigo-500/8 blur-3xl pointer-events-none" />
+              <span className="absolute top-0 left-1/3 h-40 w-40 rounded-full bg-fuchsia-500/5 blur-3xl pointer-events-none" />
+              <div className="relative z-10 flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
+                <div className="max-w-xl">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-indigo-400/30 bg-indigo-400/10 px-3.5 py-1 text-xs font-semibold text-indigo-300">
+                    <Sparkles size={13} />
+                    <span>Featured Game • Baru Ditambahkan</span>
+                  </div>
+                  <h2 className="mt-4 font-display text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+                    Neon Grid <span className="bg-gradient-to-r from-indigo-400 to-fuchsia-400 bg-clip-text text-transparent">⚡</span>
+                  </h2>
+                  <p className="mt-3 text-sm leading-7 text-slate-300 md:text-base">
+                    Susun balok bergradien di grid 8×8, bersihkan baris dan kolom untuk memicu efek blast beruntun, dan raih kombo tertinggimu!
+                  </p>
+                </div>
+                <Link
+                  to="/games/block-blast"
+                  className="inline-flex items-center gap-2.5 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-500 px-8 py-4 text-sm font-bold text-white shadow-[0_0_25px_rgba(99,102,241,0.3)] transition-all hover:scale-105 hover:shadow-[0_0_35px_rgba(99,102,241,0.5)] active:scale-95"
+                >
+                  <Gamepad2 size={18} />
+                  <span>Mainkan Sekarang</span>
+                </Link>
+              </div>
+            </div>
+          </Reveal>
+
           <SectionHeading
             index="01"
             eyebrow="Game Categories"

@@ -4,6 +4,7 @@ import Navbar from "./components/layout/Navbar"
 import Footer from "./components/layout/Footer"
 import Home from "./pages/Home"
 import Games from "./pages/Games"
+import BlockBlast from "./pages/games/BlockBlast"
 
 function ScrollToTop() {
   const { pathname } = useLocation()
@@ -106,6 +107,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/games" element={<Games />} />
+          <Route path="/games/block-blast" element={<BlockBlast />} />
         </Routes>
 
         <Footer />
