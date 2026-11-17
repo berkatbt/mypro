@@ -18,6 +18,14 @@ class SoundController {
     }
   }
 
+  // Haptic ikut tombol mute (satu tombol untuk suara + getar)
+  vibrate(pattern) {
+    if (this.muted || typeof navigator === "undefined" || !navigator.vibrate) return
+    try {
+      navigator.vibrate(pattern)
+    } catch {}
+  }
+
   // Utility: create a short noise burst (like a soft "pff")
   _noiseBurst(duration = 0.06, volume = 0.08) {
     if (!this.ctx) return

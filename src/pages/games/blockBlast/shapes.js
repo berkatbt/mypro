@@ -1,3 +1,6 @@
+import { PIECES_PER_TURN, PIECE_GENERATION } from "./constants"
+import { hasPlacement } from "./boardLogic"
+
 // Candy-style block colors — bright top, mid tone, dark bevel edge
 // (playful look like the real Block Blast, no neon glow)
 export const BLOCK_PALETTES = [
@@ -49,6 +52,14 @@ export const BLOCK_PALETTES = [
     previewBg: "rgba(154, 123, 242, 0.35)",
     previewBorder: "rgba(154, 123, 242, 0.75)",
   },
+  {
+    id: "candy-cyan",
+    top: "#7be9e4",
+    mid: "#39c8cf",
+    dark: "#249ea6",
+    previewBg: "rgba(57, 200, 207, 0.35)",
+    previewBorder: "rgba(57, 200, 207, 0.75)",
+  },
 ]
 
 // Shape definitions categorized by size/difficulty
@@ -96,39 +107,72 @@ export const SHAPE_DEFINITIONS = {
   ],
 }
 
+const ALL_SHAPES = Object.values(SHAPE_DEFINITIONS).flat()
+
+let pieceSeq = 0
+
+function makePiece(shape) {
+  const palette = BLOCK_PALETTES[Math.floor(Math.random() * BLOCK_PALETTES.length)]
+  const blockCount = shape.matrix.reduce(
+    (sum, row) => sum + row.reduce((rSum, cell) => rSum + (cell ? 1 : 0), 0),
+    0
+  )
+
+  pieceSeq += 1
+
+  return {
+    id: `p${pieceSeq}-${Date.now().toString(36)}`,
+    name: shape.name,
+    matrix: shape.matrix,
+    color: palette,
+    blockCount,
+    used: false,
+  }
+}
+
+// Kategori dipilih berbobot: balok kecil lebih sering muncul, balok besar jarang
+function randomCategory() {
+  const entries = Object.entries(PIECE_GENERATION.weights)
+  const total = entries.reduce((sum, [, weight]) => sum + weight, 0)
+  let roll = Math.random() * total
+  for (const [category, weight] of entries) {
+    roll -= weight
+    if (roll < 0) return category
+  }
+  return entries[0][0]
+}
+
+function randomPiece() {
+  const pool = SHAPE_DEFINITIONS[randomCategory()]
+  return makePiece(pool[Math.floor(Math.random() * pool.length)])
+}
+
 /**
- * Generate a trio of 3 balanced pieces so player is never hit with 3 impossible pieces
+ * Generate a trio of 3 pieces. Adil seperti aslinya: set yang dihasilkan selalu
+ * punya minimal satu balok yang masih bisa dipasang di papan saat ini, jadi
+ * permainan tidak berakhir gara-gara set mustahil.
  */
-export function generateThreePieces() {
-  const categories = ["small", "medium", "small"]
-  // 35% chance to replace one with a 'large' piece
-  if (Math.random() < 0.35) {
-    categories[1] = "large"
-  } else if (Math.random() < 0.5) {
-    categories[0] = "medium"
+export function generateThreePieces(board) {
+  for (let attempt = 0; attempt < PIECE_GENERATION.maxAttempts; attempt++) {
+    const trio = Array.from({ length: PIECES_PER_TURN }, randomPiece)
+    if (!board || trio.some((piece) => hasPlacement(board, piece.matrix))) {
+      return trio
+    }
   }
 
-  // Shuffle categories so large/medium isn't always in the same slot
-  const shuffledCats = categories.sort(() => Math.random() - 0.5)
+  return buildPlayableTrio(board)
+}
 
-  return shuffledCats.map((cat, idx) => {
-    const pool = SHAPE_DEFINITIONS[cat]
-    const chosen = pool[Math.floor(Math.random() * pool.length)]
-    const palette = BLOCK_PALETTES[Math.floor(Math.random() * BLOCK_PALETTES.length)]
+// Jaring pengaman: pilih satu bentuk yang pasti muat dulu, sisanya acak
+function buildPlayableTrio(board) {
+  const fitting = board ? ALL_SHAPES.filter((shape) => hasPlacement(board, shape.matrix)) : ALL_SHAPES
 
-    // Count number of blocks in this shape for scoring
-    const blockCount = chosen.matrix.reduce(
-      (sum, row) => sum + row.reduce((rSum, cell) => rSum + (cell ? 1 : 0), 0),
-      0
-    )
+  if (!fitting.length) {
+    // Papan benar-benar penuh untuk semua bentuk — biarkan game over terjadi
+    return Array.from({ length: PIECES_PER_TURN }, randomPiece)
+  }
 
-    return {
-      id: `${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
-      name: chosen.name,
-      matrix: chosen.matrix,
-      color: palette,
-      blockCount,
-      used: false,
-    }
-  })
+  const first = makePiece(fitting[Math.floor(Math.random() * fitting.length)])
+  const rest = Array.from({ length: PIECES_PER_TURN - 1 }, randomPiece)
+  return [first, ...rest]
 }

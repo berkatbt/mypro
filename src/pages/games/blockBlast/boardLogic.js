@@ -1,4 +1,7 @@
-export const BOARD_SIZE = 8
+import { BOARD_SIZE, SCORE, PRAISE, ALL_CLEAR_PRAISE } from "./constants"
+
+// Re-export supaya import lama `from "./boardLogic"` tetap jalan
+export { BOARD_SIZE }
 
 /**
  * Creates an empty 8x8 board initialized with null
@@ -45,7 +48,7 @@ export function placePieceOnBoard(board, matrix, startRow, startCol, color) {
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       if (matrix[r][c] === 1) {
-        newBoard[startRow + r][startCol + c] = { ...color }
+        newBoard[startRow + r][startCol + c] = color
       }
     }
   }
@@ -60,14 +63,12 @@ export function findCompletedLines(board) {
   const rowsToClear = []
   const colsToClear = []
 
-  // Check rows
   for (let r = 0; r < BOARD_SIZE; r++) {
     if (board[r].every((cell) => cell !== null)) {
       rowsToClear.push(r)
     }
   }
 
-  // Check columns
   for (let c = 0; c < BOARD_SIZE; c++) {
     let colFull = true
     for (let r = 0; r < BOARD_SIZE; r++) {
@@ -106,6 +107,66 @@ export function clearLinesFromBoard(board, rowsToClear, colsToClear) {
 }
 
 /**
+ * Number of filled cells in a piece matrix
+ */
+export function countBlocks(matrix) {
+  let total = 0
+  for (let r = 0; r < matrix.length; r++) {
+    for (let c = 0; c < matrix[r].length; c++) {
+      if (matrix[r][c]) total++
+    }
+  }
+  return total
+}
+
+/**
+ * True if the piece fits anywhere on the board (stops at the first legal spot)
+ */
+export function hasPlacement(board, matrix) {
+  const rows = matrix.length
+  const cols = matrix[0].length
+
+  for (let r = 0; r <= BOARD_SIZE - rows; r++) {
+    for (let c = 0; c <= BOARD_SIZE - cols; c++) {
+      if (canPlacePiece(board, matrix, r, c)) return true
+    }
+  }
+  return false
+}
+
+export function isBoardEmpty(board) {
+  return board.every((row) => row.every((cell) => cell === null))
+}
+
+/**
+ * Simulates a placement without mutating state: board after the piece lands,
+ * which lines complete, how many cells disappear, whether the board ends empty.
+ * Used both by the real move and by the drag preview highlight.
+ */
+export function simulatePlacement(board, piece, startRow, startCol) {
+  const placed = placePieceOnBoard(board, piece.matrix, startRow, startCol, piece.color)
+  const { rowsToClear, colsToClear } = findCompletedLines(placed)
+  const linesCleared = rowsToClear.length + colsToClear.length
+  const cellsCleared =
+    rowsToClear.length * BOARD_SIZE +
+    colsToClear.length * BOARD_SIZE -
+    rowsToClear.length * colsToClear.length
+
+  const clearedBoard =
+    linesCleared > 0 ? clearLinesFromBoard(placed, rowsToClear, colsToClear) : placed
+
+  return {
+    placed,
+    clearedBoard,
+    rowsToClear,
+    colsToClear,
+    linesCleared,
+    cellsCleared,
+    isAllClear: linesCleared > 0 && isBoardEmpty(clearedBoard),
+  }
+}
+
+/**
  * Checks if ANY of the unused pieces can be placed anywhere on the current board
  */
 export function isGameOver(board, pieces) {
@@ -113,63 +174,60 @@ export function isGameOver(board, pieces) {
   if (activePieces.length === 0) return false
 
   for (const piece of activePieces) {
-    const rows = piece.matrix.length
-    const cols = piece.matrix[0].length
-
-    for (let r = 0; r <= BOARD_SIZE - rows; r++) {
-      for (let c = 0; c <= BOARD_SIZE - cols; c++) {
-        if (canPlacePiece(board, piece.matrix, r, c)) {
-          return false // Found a legal move!
-        }
-      }
+    if (hasPlacement(board, piece.matrix)) {
+      return false // Found a legal move!
     }
   }
 
-  // No legal move for any available piece
   return true
 }
 
-/**
- * Calculate scores with line bonuses and combo multipliers
- */
-export function calculateScore(blockCount, clearedLines, currentCombo) {
-  const basePoints = blockCount
+function multiLineBonus(lines) {
+  const table = SCORE.multiLineBonus
+  if (lines < table.length) return table[lines]
+  return table[table.length - 1] + (lines - (table.length - 1)) * SCORE.extraLineBonus
+}
 
-  if (clearedLines === 0) {
+/**
+ * Score for one placement: poin per kotak + poin per kotak terhapus + bonus
+ * garis sekaligus, dikali pengali combo beruntun, plus bonus all clear.
+ */
+export function calculateScore({
+  blocksPlaced = 0,
+  linesCleared = 0,
+  cellsCleared = 0,
+  combo = 0,
+  isAllClear = false,
+}) {
+  const blockPoints = blocksPlaced * SCORE.perBlock
+
+  if (linesCleared <= 0) {
     return {
-      points: basePoints,
+      points: blockPoints,
       newCombo: 0,
-      cleared: 0,
-      bannerText: null,
+      label: null,
+      comboText: null,
+      lineBonus: 0,
+      multiplier: 1,
     }
   }
 
-  // Multi-line bonus
-  let lineBonus = 100
-  if (clearedLines === 2) lineBonus = 300
-  else if (clearedLines === 3) lineBonus = 600
-  else if (clearedLines >= 4) lineBonus = 1000 + (clearedLines - 4) * 400
+  const newCombo = combo + 1
+  const lineBonus = multiLineBonus(linesCleared)
+  const multiplier = Math.min(1 + (newCombo - 1) * SCORE.comboStep, SCORE.maxComboMultiplier)
+  const base = blockPoints + cellsCleared * SCORE.perClearedCell + lineBonus
 
-  // Combo multiplier
-  const nextCombo = currentCombo + 1
-  const comboBonus = nextCombo > 1 ? (nextCombo - 1) * 75 : 0
-  const totalScore = basePoints + lineBonus + comboBonus
+  let points = Math.round(base * multiplier)
+  if (isAllClear) points += SCORE.allClearBonus
 
-  let bannerText = "LINE CLEAR! 💥"
-  if (clearedLines > 1 && nextCombo === 1) {
-    bannerText = `${clearedLines} LINES BLAST! ⚡`
-  } else if (nextCombo === 2) {
-    bannerText = "GREAT! COMBO x2 🔥"
-  } else if (nextCombo === 3) {
-    bannerText = "AWESOME! COMBO x3 ⚡"
-  } else if (nextCombo >= 4) {
-    bannerText = `UNBELIEVABLE! COMBO x${nextCombo} 🌟`
-  }
+  const praiseIndex = Math.min(PRAISE.length, Math.max(linesCleared, newCombo)) - 1
 
   return {
-    points: totalScore,
-    newCombo: nextCombo,
-    cleared: clearedLines,
-    bannerText,
+    points,
+    newCombo,
+    label: isAllClear ? ALL_CLEAR_PRAISE : PRAISE[praiseIndex],
+    comboText: newCombo >= 2 ? `COMBO ×${newCombo}` : null,
+    lineBonus,
+    multiplier,
   }
 }
