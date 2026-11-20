@@ -370,9 +370,3 @@ function buildFallbackTrio(board, { rng = Math.random, count = PIECES_PER_TURN }
   return trio
 }
 
-// Alias lama; dipertahankan supaya import lama tetap jalan saat transisi UI.
-export function generateThreePieces(board) {
-  return generatePieces(board)
-}
-
-export const SHAPE_FAMILY_COUNT = SHAPE_FAMILIES.length

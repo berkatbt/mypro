@@ -738,7 +738,10 @@ export default function BlockBlast() {
           <span className="text-[9px] font-bold tracking-[0.42em] text-indigo-200/40 uppercase">
             Block Blast
           </span>
-          <span className="font-display text-[46px] leading-none font-black tracking-tight text-white tabular-nums sm:text-5xl">
+          <span
+            data-score={displayScore}
+            className="font-display text-[46px] leading-none font-black tracking-tight text-white tabular-nums sm:text-5xl"
+          >
             {displayScore.toLocaleString()}
           </span>
           <div className="mt-1.5 flex h-6 items-center">
@@ -863,6 +866,8 @@ export default function BlockBlast() {
             transform: `translate3d(${Math.round(ghostPreview.left)}px, ${Math.round(
               ghostPreview.top
             )}px, 0)`,
+            "--bb-grow-duration": `${DRAG.growMs}ms`,
+            "--bb-grow-from": DRAG.ghostScale,
           }}
         >
           <GhostBody piece={drag.piece} geometry={drag.geometry} grow />

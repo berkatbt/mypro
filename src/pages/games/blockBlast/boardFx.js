@@ -1,3 +1,5 @@
+import { BOARD_SIZE } from "./constants"
+
 export const cellKeyOf = (r, c) => `${r}-${c}`
 
 /**
@@ -49,8 +51,8 @@ export function buildParticles(cells, perCell = 2) {
       const speed = 16 + ((seed * 7) % 22)
       particles.push({
         key: `${key}-${i}`,
-        x: ((c + 0.5) / 8) * 100,
-        y: ((r + 0.5) / 8) * 100,
+        x: ((c + 0.5) / BOARD_SIZE) * 100,
+        y: ((r + 0.5) / BOARD_SIZE) * 100,
         dx: Math.cos(angle) * speed,
         dy: Math.sin(angle) * speed - 12,
         size: 3 + ((seed * 13) % 4),

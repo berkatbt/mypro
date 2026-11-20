@@ -1,5 +1,5 @@
 import { BOARD_SIZE, PIECES_PER_TURN, STORAGE_KEYS } from "./constants"
-import { BLOCK_PALETTES, PALETTE_BY_ID } from "./shapes"
+import { PALETTE_BY_ID } from "./shapes"
 
 function read(key) {
   try {
@@ -165,5 +165,3 @@ export function clearGame() {
   remove(STORAGE_KEYS.game)
 }
 
-// Dipakai test tanpa localStorage
-export const PALETTES = BLOCK_PALETTES
