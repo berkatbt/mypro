@@ -1,8 +1,9 @@
-import { memo } from "react"
+import { memo, useMemo } from "react"
 import { motion } from "motion/react"
 import { TIMING } from "./constants"
 import { CandyBlock } from "./Block"
-import { cellKeyOf } from "./boardFx"
+import { buildParticles, cellKeyOf } from "./boardFx"
+import { PALETTE_BY_ID } from "./shapes"
 
 const BoardCell = memo(function BoardCell({
   r,
@@ -12,6 +13,7 @@ const BoardCell = memo(function BoardCell({
   previewColor,
   willClear,
   blastDelay,
+  reduceMotion,
 }) {
   const blasting = blastDelay != null
 
@@ -19,15 +21,15 @@ const BoardCell = memo(function BoardCell({
     return (
       <motion.div
         data-cell={`${r}-${c}`}
-        initial={{ scale: 0.72, opacity: 0.35 }}
+        initial={reduceMotion ? false : { scale: 0.72, opacity: 0.35 }}
         animate={
           blasting ? { scale: [1, 1.12, 0.08], opacity: [1, 1, 0] } : { scale: 1, opacity: 1 }
         }
         transition={
           blasting
             ? {
-                duration: TIMING.clearDurationMs / 1000,
-                delay: (blastDelay ?? 0) / 1000,
+                duration: reduceMotion ? 0.12 : TIMING.clearDurationMs / 1000,
+                delay: reduceMotion ? 0 : (blastDelay ?? 0) / 1000,
                 ease: "easeOut",
                 times: [0, 0.3, 1],
               }
@@ -73,7 +75,13 @@ export const BoardGrid = memo(function BoardGrid({
   highlight,
   clearFx,
   boardRef,
+  reduceMotion,
 }) {
+  const particles = useMemo(
+    () => (clearFx && !reduceMotion ? buildParticles(clearFx.cells, 2) : []),
+    [clearFx, reduceMotion]
+  )
+
   return (
     <div
       ref={boardRef}
@@ -98,9 +106,31 @@ export const BoardGrid = memo(function BoardGrid({
               previewColor={preview?.color}
               willClear={willClear}
               blastDelay={blast ? blast.delay : null}
+              reduceMotion={reduceMotion}
             />
           )
         })
+      )}
+
+      {particles.length > 0 && (
+        <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-[26px]">
+          {particles.map((particle) => (
+            <span
+              key={particle.key}
+              className="bb-particle"
+              style={{
+                left: `${particle.x}%`,
+                top: `${particle.y}%`,
+                width: particle.size,
+                height: particle.size,
+                background: PALETTE_BY_ID[particle.colorId]?.mid ?? "#ffffff",
+                animationDelay: `${particle.delay}ms`,
+                "--bb-dx": `${particle.dx}px`,
+                "--bb-dy": `${particle.dy}px`,
+              }}
+            />
+          ))}
+        </div>
       )}
     </div>
   )

@@ -1,4 +1,5 @@
-// Deeper, more cinematic audio — layered sine+square harmonics, white noise bursts, detuned chords
+// Semua suara disintesis lewat Web Audio API — tanpa file audio.
+// Nada naik seiring streak, dan tidak ada yang dijalankan sebelum gesture user.
 
 class SoundController {
   constructor() {
@@ -6,179 +7,134 @@ class SoundController {
     this.muted = false
   }
 
-  init() {
-    if (!this.ctx && typeof window !== "undefined") {
+  // Harus dipanggil dari gesture user (pointerdown) supaya iOS mengizinkan audio
+  unlock() {
+    if (typeof window === "undefined") return
+    if (!this.ctx) {
       const AudioContext = window.AudioContext || window.webkitAudioContext
-      if (AudioContext) {
+      if (!AudioContext) return
+      try {
         this.ctx = new AudioContext()
+      } catch {
+        return
       }
     }
-    if (this.ctx && this.ctx.state === "suspended") {
-      this.ctx.resume()
+    if (this.ctx.state === "suspended") {
+      this.ctx.resume().catch(() => {})
     }
   }
 
-  // Haptic ikut tombol mute (satu tombol untuk suara + getar)
-  vibrate(pattern) {
-    if (this.muted || typeof navigator === "undefined" || !navigator.vibrate) return
+  init() {
+    this.unlock()
+  }
+
+  _tone({ freq, type = "sine", duration = 0.2, volume = 0.1, delay = 0, slideTo = null }) {
+    if (!this.ctx || this.muted) return
     try {
-      navigator.vibrate(pattern)
+      const start = this.ctx.currentTime + delay
+      const osc = this.ctx.createOscillator()
+      const gain = this.ctx.createGain()
+      osc.type = type
+      osc.frequency.setValueAtTime(freq, start)
+      if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, start + duration)
+      gain.gain.setValueAtTime(volume, start)
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + duration)
+      osc.connect(gain)
+      gain.connect(this.ctx.destination)
+      osc.start(start)
+      osc.stop(start + duration + 0.02)
     } catch {}
   }
 
-  // Utility: create a short noise burst (like a soft "pff")
-  _noiseBurst(duration = 0.06, volume = 0.08) {
-    if (!this.ctx) return
-    const bufSize = Math.ceil(this.ctx.sampleRate * duration)
-    const buf = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate)
-    const data = buf.getChannelData(0)
-    for (let i = 0; i < bufSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * (1 - i / bufSize) // decay envelope
-    }
-    const src = this.ctx.createBufferSource()
-    src.buffer = buf
-    const gain = this.ctx.createGain()
-    gain.gain.setValueAtTime(volume, this.ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration)
-    // high-pass to make it sizzle
-    const hp = this.ctx.createBiquadFilter()
-    hp.type = "highpass"
-    hp.frequency.value = 3000
-    src.connect(hp)
-    hp.connect(gain)
-    gain.connect(this.ctx.destination)
-    src.start()
+  _noise({ duration = 0.06, volume = 0.05, delay = 0 }) {
+    if (!this.ctx || this.muted) return
+    try {
+      const start = this.ctx.currentTime + delay
+      const size = Math.ceil(this.ctx.sampleRate * duration)
+      const buffer = this.ctx.createBuffer(1, size, this.ctx.sampleRate)
+      const data = buffer.getChannelData(0)
+      for (let i = 0; i < size; i++) {
+        data[i] = (Math.random() * 2 - 1) * (1 - i / size)
+      }
+      const source = this.ctx.createBufferSource()
+      source.buffer = buffer
+      const filter = this.ctx.createBiquadFilter()
+      filter.type = "highpass"
+      filter.frequency.value = 2600
+      const gain = this.ctx.createGain()
+      gain.gain.setValueAtTime(volume, start)
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + duration)
+      source.connect(filter)
+      filter.connect(gain)
+      gain.connect(this.ctx.destination)
+      source.start(start)
+      source.stop(start + duration)
+    } catch {}
   }
 
   playSelect() {
     if (this.muted) return
-    this.init()
-    if (!this.ctx) return
-    try {
-      const now = this.ctx.currentTime
-      // Two quick layered tones — a "tick" feeling
-      const freqs = [680, 1020]
-      freqs.forEach((freq, i) => {
-        const osc = this.ctx.createOscillator()
-        const gain = this.ctx.createGain()
-        osc.type = i === 0 ? "sine" : "triangle"
-        osc.frequency.setValueAtTime(freq, now)
-        gain.gain.setValueAtTime(0.08, now)
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06)
-        osc.connect(gain)
-        gain.connect(this.ctx.destination)
-        osc.start(now)
-        osc.stop(now + 0.06)
-      })
-    } catch {}
+    this.unlock()
+    this._tone({ freq: 720, type: "sine", duration: 0.06, volume: 0.06 })
+    this._tone({ freq: 1080, type: "triangle", duration: 0.05, volume: 0.03 })
   }
 
   playPlace() {
     if (this.muted) return
-    this.init()
-    if (!this.ctx) return
-    try {
-      const now = this.ctx.currentTime
-      // Warm thud: low sine sweep + noise click
-      const osc = this.ctx.createOscillator()
-      const gain = this.ctx.createGain()
-      osc.type = "sine"
-      osc.frequency.setValueAtTime(220, now)
-      osc.frequency.exponentialRampToValueAtTime(80, now + 0.14)
-      gain.gain.setValueAtTime(0.22, now)
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14)
-      osc.connect(gain)
-      gain.connect(this.ctx.destination)
-      osc.start(now)
-      osc.stop(now + 0.14)
-      // Add a tiny click
-      this._noiseBurst(0.03, 0.06)
-    } catch {}
+    this.unlock()
+    this._tone({ freq: 210, slideTo: 92, duration: 0.14, volume: 0.2 })
+    this._noise({ duration: 0.03, volume: 0.05 })
   }
 
-  playBlast(lineCount = 1) {
+  playClear({ lines = 1, streak = 1, perfect = false } = {}) {
     if (this.muted) return
-    this.init()
+    this.unlock()
     if (!this.ctx) return
-    try {
-      const now = this.ctx.currentTime
-      // Rising shimmer — more lines = higher pitch & longer tail
-      const baseFreq = 350 + lineCount * 120
-      const steps = 3 + Math.min(lineCount, 3)
-      for (let i = 0; i < steps; i++) {
-        const delay = i * 0.04
-        const osc = this.ctx.createOscillator()
-        const gain = this.ctx.createGain()
-        osc.type = "sine"
-        osc.frequency.setValueAtTime(baseFreq + i * 90, now + delay)
-        gain.gain.setValueAtTime(0.16, now + delay)
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.22)
-        osc.connect(gain)
-        gain.connect(this.ctx.destination)
-        osc.start(now + delay)
-        osc.stop(now + delay + 0.22)
-      }
-      // White noise whoosh
-      this._noiseBurst(0.12, 0.1)
-    } catch {}
-  }
 
-  playCombo(combo = 1) {
-    if (this.muted) return
-    this.init()
-    if (!this.ctx) return
-    try {
-      // Bright pentatonic arpeggio, longer the higher the combo
-      const scale = [523, 587, 659, 784, 880, 988, 1047]
-      const noteCount = Math.min(scale.length, 3 + combo)
-      const now = this.ctx.currentTime
-      for (let i = 0; i < noteCount; i++) {
-        const delay = i * 0.055
-        const osc = this.ctx.createOscillator()
-        const gain = this.ctx.createGain()
-        osc.type = "triangle"
-        // Slight detune for richness
-        osc.detune.setValueAtTime((Math.random() - 0.5) * 10, now + delay)
-        osc.frequency.setValueAtTime(scale[i], now + delay)
-        gain.gain.setValueAtTime(0.14, now + delay)
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.28)
-        osc.connect(gain)
-        gain.connect(this.ctx.destination)
-        osc.start(now + delay)
-        osc.stop(now + delay + 0.28)
-      }
-    } catch {}
+    const root = 300 + Math.min(streak, 8) * 38 + (lines - 1) * 30
+    const notes = perfect ? [0, 4, 7, 12, 16, 19] : [0, 4, 7, 12]
+    const count = perfect ? notes.length : Math.min(notes.length, 2 + lines + Math.min(streak, 3))
+
+    for (let i = 0; i < count; i++) {
+      const semitone = notes[i]
+      this._tone({
+        freq: root * 2 ** (semitone / 12),
+        type: "triangle",
+        duration: 0.22,
+        volume: 0.11,
+        delay: i * 0.045,
+      })
+    }
+
+    this._noise({ duration: 0.16, volume: perfect ? 0.1 : 0.06 })
+    if (perfect) {
+      this._tone({ freq: root * 2, duration: 0.5, volume: 0.06, delay: 0.12 })
+      this._tone({ freq: root * 3, duration: 0.6, volume: 0.04, delay: 0.18 })
+    }
   }
 
   playGameOver() {
     if (this.muted) return
-    this.init()
-    if (!this.ctx) return
-    try {
-      const now = this.ctx.currentTime
-      // Minor chord descend — melancholy but cinematic
-      const chords = [
-        [330, 392, 494],
-        [294, 349, 440],
-        [262, 311, 392],
-        [196, 233, 294],
-      ]
-      chords.forEach((chord, chordIdx) => {
-        const delay = chordIdx * 0.18
-        chord.forEach((freq) => {
-          const osc = this.ctx.createOscillator()
-          const gain = this.ctx.createGain()
-          osc.type = "sine"
-          osc.frequency.setValueAtTime(freq, now + delay)
-          gain.gain.setValueAtTime(0.1, now + delay)
-          gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.35)
-          osc.connect(gain)
-          gain.connect(this.ctx.destination)
-          osc.start(now + delay)
-          osc.stop(now + delay + 0.35)
+    this.unlock()
+    const chords = [
+      [330, 392, 494],
+      [294, 349, 440],
+      [262, 311, 392],
+      [196, 233, 294],
+    ]
+
+    chords.forEach((chord, index) => {
+      chord.forEach((freq) => {
+        this._tone({
+          freq,
+          type: "sine",
+          duration: 0.38,
+          volume: 0.07,
+          delay: index * 0.17,
         })
       })
-    } catch {}
+    })
+    this._tone({ freq: 98, slideTo: 65, duration: 0.7, volume: 0.12, delay: 0.1 })
   }
 }
 

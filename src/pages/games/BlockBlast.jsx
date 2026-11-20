@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { AnimatePresence, motion } from "motion/react"
+import { AnimatePresence, motion, useAnimationControls, useReducedMotion } from "motion/react"
 import {
   ArrowLeft,
   Crown,
@@ -10,6 +10,7 @@ import {
   Volume2,
   VolumeX,
   X,
+  Zap,
 } from "lucide-react"
 import { Link } from "react-router-dom"
 import {
@@ -23,6 +24,8 @@ import { generatePieces } from "./blockBlast/shapes"
 import { calculateScore } from "./blockBlast/scoring"
 import { DRAG, HAPTIC, TIMING } from "./blockBlast/constants"
 import { sounds } from "./blockBlast/audio"
+import { haptics } from "./blockBlast/haptics"
+import { useCountUp } from "./blockBlast/useCountUp"
 import { clearGame, loadBest, saveBest } from "./blockBlast/storage"
 import { BoardGrid } from "./blockBlast/Board"
 import { buildClearCells, cellKeyOf, maxClearDelay } from "./blockBlast/boardFx"
@@ -125,9 +128,11 @@ export default function BlockBlast() {
 
   // ── UI state ──────────────────────────────────────────────────────────
   const [muted, setMuted] = useState(false)
+  const [vibrationOn, setVibrationOn] = useState(true)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [showHowTo, setShowHowTo] = useState(false)
   const [banner, setBanner] = useState(null)
+  const [scorePopup, setScorePopup] = useState(null)
 
   // ── Interaction / effect state ────────────────────────────────────────
   const [preview, setPreview] = useState(null)
@@ -145,6 +150,14 @@ export default function BlockBlast() {
   const busyRef = useRef(false)
   const dragCleanupRef = useRef(null)
   const timersRef = useRef(new Set())
+
+  const shakeControls = useAnimationControls()
+  const reduceMotion = useReducedMotion()
+  const displayScore = useCountUp(score, { enabled: !reduceMotion })
+  const displayFinal = useCountUp(gameOver ? score : 0, {
+    duration: 700,
+    enabled: gameOver && !reduceMotion,
+  })
 
   const schedule = useCallback((fn, ms) => {
     const id = setTimeout(() => {
@@ -172,6 +185,17 @@ export default function BlockBlast() {
     sounds.muted = muted
   }, [muted])
 
+  useEffect(() => {
+    haptics.enabled = vibrationOn
+  }, [vibrationOn])
+
+  // iOS hanya mengizinkan audio setelah gesture pertama
+  useEffect(() => {
+    const unlock = () => sounds.unlock()
+    window.addEventListener("pointerdown", unlock, { once: true })
+    return () => window.removeEventListener("pointerdown", unlock)
+  }, [])
+
   const updatePreview = useCallback((next) => {
     const prev = previewRef.current
     if (!prev && !next) return
@@ -193,7 +217,7 @@ export default function BlockBlast() {
     busyRef.current = false
     setGameOver(true)
     sounds.playGameOver()
-    sounds.vibrate(HAPTIC.gameOver)
+    haptics.vibrate(HAPTIC.gameOver)
   }, [])
 
   const resetGame = useCallback(() => {
@@ -214,6 +238,7 @@ export default function BlockBlast() {
     setGameOver(false)
     setIsNewHigh(false)
     setBanner(null)
+    setScorePopup(null)
     setClearFx(null)
     setPreview(null)
     setDrag(null)
@@ -260,9 +285,57 @@ export default function BlockBlast() {
 
       sounds.init()
       sounds.playPlace()
-      sounds.vibrate(HAPTIC.place)
+      haptics.vibrate(HAPTIC.place)
 
       if (simulated.linesCleared === 0) {
+        setBoard(simulated.clearedBoard)
+        setPieces(nextPieces)
+        if (nextGameOver) finishGame()
+        return
+      }
+
+      setBanner({
+        id: Date.now(),
+        text: result.praise,
+        level: result.praiseLevel,
+        perfect: result.isPerfectClear,
+        comboText: result.streak >= 2 ? `COMBO ×${result.streak}` : null,
+        points: result.points,
+      })
+      schedule(() => setBanner(null), TIMING.bannerMs)
+
+      setScorePopup({
+        id: Date.now(),
+        points: result.points,
+        x: ((startCol + 0.5) / BOARD_SIZE) * 100,
+        y: ((startRow + 0.5) / BOARD_SIZE) * 100,
+      })
+      schedule(() => setScorePopup(null), TIMING.popupMs)
+
+      sounds.playClear({
+        lines: simulated.linesCleared,
+        streak: result.streak,
+        perfect: simulated.isAllClear,
+      })
+      haptics.vibrate(
+        simulated.isAllClear
+          ? HAPTIC.perfectClear
+          : simulated.linesCleared > 1
+            ? HAPTIC.multiClear
+            : HAPTIC.clear
+      )
+
+      if (simulated.linesCleared >= 3 && !reduceMotion) {
+        const distance = TIMING.shakeDistance * Math.min(simulated.linesCleared - 2, 2)
+        shakeControls.start({
+          x: [0, -distance, distance, -distance * 0.6, distance * 0.6, 0],
+          y: [0, distance * 0.4, -distance * 0.4, distance * 0.2, 0],
+          transition: { duration: TIMING.shakeMs / 1000, ease: "easeInOut" },
+        })
+      }
+
+      // Reduced motion: papan langsung ke kondisi akhir, tanpa gelombang
+      if (reduceMotion) {
         setBoard(simulated.clearedBoard)
         setPieces(nextPieces)
         if (nextGameOver) finishGame()
@@ -283,23 +356,6 @@ export default function BlockBlast() {
         TIMING.clearStaggerMs
       )
       setClearFx({ cells })
-      setBanner({
-        id: Date.now(),
-        text: result.praise,
-        comboText: result.streak >= 2 ? `COMBO ×${result.streak}` : null,
-        points: result.points,
-      })
-      schedule(() => setBanner(null), TIMING.bannerMs)
-
-      sounds.playBlast(simulated.linesCleared)
-      if (result.streak > 1) sounds.playCombo(result.streak)
-      sounds.vibrate(
-        simulated.isAllClear
-          ? HAPTIC.perfectClear
-          : simulated.linesCleared > 1
-            ? HAPTIC.multiClear
-            : HAPTIC.clear
-      )
 
       const sweep = maxClearDelay(cells) + TIMING.clearDurationMs + 40
       schedule(() => {
@@ -318,6 +374,8 @@ export default function BlockBlast() {
       dryPlacements,
       best,
       gameOver,
+      reduceMotion,
+      shakeControls,
       schedule,
       finishGame,
     ]
@@ -595,6 +653,27 @@ export default function BlockBlast() {
                       </span>
                     </button>
                     <button
+                      onClick={() => setVibrationOn((value) => !value)}
+                      className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-200 transition-colors hover:bg-white/10"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Zap
+                          size={15}
+                          className={vibrationOn ? "text-amber-300" : "text-slate-500"}
+                        />
+                        Getar
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[9px] font-black ${
+                          vibrationOn
+                            ? "bg-amber-400 text-amber-950"
+                            : "bg-white/10 text-slate-400"
+                        }`}
+                      >
+                        {vibrationOn ? "ON" : "OFF"}
+                      </span>
+                    </button>
+                    <button
                       onClick={resetGame}
                       className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-200 transition-colors hover:bg-white/10"
                     >
@@ -621,7 +700,7 @@ export default function BlockBlast() {
             Block Blast
           </span>
           <span className="font-display text-[46px] leading-none font-black tracking-tight text-white tabular-nums sm:text-5xl">
-            {score.toLocaleString()}
+            {displayScore.toLocaleString()}
           </span>
           <div className="mt-1.5 flex h-6 items-center">
             {streak >= 2 && (
@@ -650,7 +729,14 @@ export default function BlockBlast() {
                 transition={{ type: "spring", stiffness: 420, damping: 22 }}
                 className="pointer-events-none absolute inset-x-0 top-[26%] z-30 flex flex-col items-center gap-1"
               >
-                <span className="bb-praise font-display text-4xl font-black tracking-tight sm:text-5xl">
+                <span
+                  className="bb-praise font-display font-black tracking-tight"
+                  style={{
+                    fontSize: banner.perfect
+                      ? "clamp(2.4rem, 11vw, 3.6rem)"
+                      : `${30 + (banner.level ?? 0) * 5}px`,
+                  }}
+                >
                   {banner.text}
                 </span>
                 <span className="flex items-center gap-2 rounded-full bg-black/45 px-3 py-1 text-[11px] font-bold text-white backdrop-blur">
@@ -663,13 +749,36 @@ export default function BlockBlast() {
             )}
           </AnimatePresence>
 
-          <BoardGrid
-            board={board}
-            preview={previewCells}
-            highlight={previewLines}
-            clearFx={clearFx}
-            boardRef={boardRef}
-          />
+          <AnimatePresence>
+            {scorePopup && (
+              <motion.span
+                key={scorePopup.id}
+                initial={{ opacity: 0, y: 8, scale: 0.7 }}
+                animate={{ opacity: 1, y: -28, scale: 1 }}
+                exit={{ opacity: 0, y: -58, scale: 0.9 }}
+                transition={{ duration: 0.85, ease: "easeOut" }}
+                className="font-display pointer-events-none absolute z-30 -translate-x-1/2 -translate-y-1/2 text-xl font-black text-white"
+                style={{
+                  left: `${scorePopup.x}%`,
+                  top: `${scorePopup.y}%`,
+                  textShadow: "0 3px 12px rgba(0,0,0,0.65)",
+                }}
+              >
+                +{scorePopup.points.toLocaleString()}
+              </motion.span>
+            )}
+          </AnimatePresence>
+
+          <motion.div animate={shakeControls}>
+            <BoardGrid
+              board={board}
+              preview={previewCells}
+              highlight={previewLines}
+              clearFx={clearFx}
+              boardRef={boardRef}
+              reduceMotion={reduceMotion}
+            />
+          </motion.div>
         </div>
 
         {/* ── Tray ── */}
@@ -777,7 +886,7 @@ export default function BlockBlast() {
                   Skor Akhir
                 </span>
                 <div className="font-display mt-1 text-4xl font-black text-white tabular-nums">
-                  {score.toLocaleString()}
+                  {displayFinal.toLocaleString()}
                 </div>
                 <div className="mt-3 flex items-center justify-center gap-2 text-[11px] text-slate-400">
                   <Crown size={13} className="text-amber-300" />

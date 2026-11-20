@@ -177,6 +177,28 @@
   background: rgba(255, 255, 255, 0.07);
 }
 
+/* ── Clear particles ──────────────────────────────────────────────────────── */
+
+.bb-particle {
+  position: absolute;
+  border-radius: 2px;
+  transform: translate3d(-50%, -50%, 0);
+  animation: bb-particle-fly 640ms cubic-bezier(0.18, 0.7, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+@keyframes bb-particle-fly {
+  from {
+    opacity: 1;
+    transform: translate3d(-50%, -50%, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(calc(-50% + var(--bb-dx)), calc(-50% + var(--bb-dy)), 0)
+      scale(0.25);
+  }
+}
+
 /* ── Praise banner ────────────────────────────────────────────────────────── */
 
 .bb-praise {
@@ -206,7 +228,8 @@
   .bb-ghost-inner,
   .bb-cell-preview,
   .bb-cell-glow,
-  .bb-cell-light-inner {
+  .bb-cell-light-inner,
+  .bb-particle {
     animation: none;
   }
 }
