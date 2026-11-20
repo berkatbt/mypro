@@ -8,7 +8,7 @@ import {
   simulatePlacement,
 } from "../boardLogic"
 import { makePiece } from "../shapes"
-import { color, fillCols, fillRows, seededRng } from "./helpers"
+import { color, fillCols, fillRows } from "./helpers"
 
 const rng = () => 0.42
 const dot = makePiece({ name: "dot", matrix: [[1]] }, rng)

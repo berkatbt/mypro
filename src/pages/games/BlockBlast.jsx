@@ -26,7 +26,15 @@ import { DRAG, HAPTIC, TIMING } from "./blockBlast/constants"
 import { sounds } from "./blockBlast/audio"
 import { haptics } from "./blockBlast/haptics"
 import { useCountUp } from "./blockBlast/useCountUp"
-import { clearGame, loadBest, saveBest } from "./blockBlast/storage"
+import {
+  clearGame,
+  loadBest,
+  loadGame,
+  loadSettings,
+  saveBest,
+  saveGame,
+  saveSettings,
+} from "./blockBlast/storage"
 import { BoardGrid } from "./blockBlast/Board"
 import { buildClearCells, cellKeyOf, maxClearDelay } from "./blockBlast/boardFx"
 import { CandyBlock, MiniCandy } from "./blockBlast/Block"
@@ -34,7 +42,8 @@ import "./blockBlast/blockBlast.css"
 
 const SPRING = { type: "spring", stiffness: 380, damping: 26 }
 
-function createSession() {
+function createSession(saved) {
+  if (saved) return saved
   const board = createEmptyBoard()
   return {
     board,
@@ -113,7 +122,7 @@ function PiecePreview({ piece }) {
 }
 
 export default function BlockBlast() {
-  const [initial] = useState(createSession)
+  const [initial] = useState(() => createSession(loadGame()))
 
   // ── Game state ────────────────────────────────────────────────────────
   const [board, setBoard] = useState(initial.board)
@@ -127,8 +136,9 @@ export default function BlockBlast() {
   const [isNewHigh, setIsNewHigh] = useState(false)
 
   // ── UI state ──────────────────────────────────────────────────────────
-  const [muted, setMuted] = useState(false)
-  const [vibrationOn, setVibrationOn] = useState(true)
+  const [savedSettings] = useState(() => loadSettings() ?? { muted: false, vibration: true })
+  const [muted, setMuted] = useState(savedSettings.muted)
+  const [vibrationOn, setVibrationOn] = useState(savedSettings.vibration)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [showHowTo, setShowHowTo] = useState(false)
   const [banner, setBanner] = useState(null)
@@ -195,6 +205,35 @@ export default function BlockBlast() {
     window.addEventListener("pointerdown", unlock, { once: true })
     return () => window.removeEventListener("pointerdown", unlock)
   }, [])
+
+  useEffect(() => {
+    saveSettings({ muted, vibration: vibrationOn })
+  }, [muted, vibrationOn])
+
+  // Simpan game berjalan supaya refresh tidak menghapus progres.
+  // Game yang sudah selesai tidak disimpan (best score tetap tersimpan).
+  useEffect(() => {
+    if (gameOver) {
+      clearGame()
+      return
+    }
+    if (busyRef.current) return
+
+    const id = setTimeout(() => {
+      if (busyRef.current) return
+      saveGame({
+        board,
+        pieces,
+        score,
+        streak,
+        dryPlacements,
+        totalCleared,
+        gameOver: false,
+      })
+    }, 300)
+
+    return () => clearTimeout(id)
+  }, [board, pieces, score, streak, dryPlacements, totalCleared, gameOver])
 
   const updatePreview = useCallback((next) => {
     const prev = previewRef.current
