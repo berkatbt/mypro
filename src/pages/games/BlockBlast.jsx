@@ -19,12 +19,12 @@ import {
   createEmptyBoard,
   canPlacePiece,
   isGameOver,
-  calculateScore,
   simulatePlacement,
 } from "./blockBlast/boardLogic"
+import { calculateScore } from "./blockBlast/scoring"
 import { generateThreePieces } from "./blockBlast/shapes"
 import { sounds } from "./blockBlast/audio"
-import { TIMING, DRAG, HAPTIC, STORAGE_KEY } from "./blockBlast/constants"
+import { TIMING, DRAG, HAPTIC, STORAGE_KEYS } from "./blockBlast/constants"
 
 // Floating particle component for blast effects — candy-colored sparks
 const SPARK_COLORS = ["#ff6b6b", "#ffa726", "#ffd93d", "#5bd67a", "#4aa8ff", "#a47bff"]
@@ -252,7 +252,7 @@ function buildClearCells(rowsToClear, colsToClear, stagger) {
 
 function readHighScore() {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY)
+    const saved = localStorage.getItem(STORAGE_KEYS.best)
     return saved ? parseInt(saved, 10) || 0 : 0
   } catch {
     return 0
@@ -391,8 +391,8 @@ export default function BlockBlast() {
         blocksPlaced: piece.blockCount,
         linesCleared,
         cellsCleared,
-        combo,
-        isAllClear,
+        streak: combo,
+        isPerfectClear: isAllClear,
       })
       const nextScore = score + result.points
 
@@ -401,7 +401,7 @@ export default function BlockBlast() {
       sounds.vibrate(HAPTIC.place)
 
       setScore(nextScore)
-      setCombo(result.newCombo)
+      setCombo(result.streak)
       setSelectedPieceId(null)
       setDraggingPiece(null)
       setDragGeom(null)
@@ -411,7 +411,7 @@ export default function BlockBlast() {
         setHighScore(nextScore)
         setIsNewHigh(true)
         try {
-          localStorage.setItem(STORAGE_KEY, String(nextScore))
+          localStorage.setItem(STORAGE_KEYS.best, String(nextScore))
         } catch {}
       }
 
@@ -436,9 +436,9 @@ export default function BlockBlast() {
       schedule(() => setShowParticles(false), 600)
 
       sounds.playBlast(linesCleared)
-      if (result.newCombo > 1) sounds.playCombo(result.newCombo)
+      if (result.streak > 1) sounds.playCombo(result.streak)
       sounds.vibrate(
-        isAllClear ? HAPTIC.allClear : linesCleared > 1 ? HAPTIC.multiClear : HAPTIC.clear
+        isAllClear ? HAPTIC.perfectClear : linesCleared > 1 ? HAPTIC.multiClear : HAPTIC.clear
       )
 
       if (linesCleared >= 2) {
@@ -452,8 +452,8 @@ export default function BlockBlast() {
 
       if (result.label) {
         setBanner({
-          text: result.label,
-          comboText: result.comboText,
+          text: result.praise,
+          comboText: result.streak >= 2 ? `COMBO ×${result.streak}` : null,
           points: result.points,
           id: Date.now(),
         })
@@ -516,7 +516,7 @@ export default function BlockBlast() {
       const gap = Math.max(geom.step - geom.size, 0)
       const width = cols * geom.step - gap
       const height = rows * geom.step - gap
-      const lift = pointerType === "touch" ? DRAG.liftTouch : DRAG.liftPointer
+      const lift = pointerType === "touch" ? geom.step * DRAG.touchLiftCells : 0
       const left = x - width / 2
       const top = y - height - lift
 
