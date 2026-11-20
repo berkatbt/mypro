@@ -1,12 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   BASE_POS,
-  COLOR_START_INDEX,
-  HOME_POS,
-  SAFE_TRACK_SET,
 } from '../constants'
 import { createInitialState } from '../engine'
-import { chooseBotMove, evaluateMove, isPositionUnderThreat } from '../bot'
+import { chooseBotMove, isPositionUnderThreat } from '../bot'
 
 describe('Bot AI Heuristics (Section E & I)', () => {
   it('prioritizes capture over other regular moves', () => {

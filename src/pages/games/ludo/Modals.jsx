@@ -1,5 +1,5 @@
 import React from 'react'
-import { motion, AnimatePresence } from 'motion/react'
+import { motion } from 'motion/react'
 import {
   X,
   Volume2,
@@ -14,7 +14,6 @@ import {
   Users,
   Bot,
   HelpCircle,
-  Sparkles,
 } from 'lucide-react'
 import { COLOR_CONFIG, COLORS } from './constants'
 

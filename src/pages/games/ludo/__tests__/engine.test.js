@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   BASE_POS,
-  COLOR_CONFIG,
   COLOR_START_INDEX,
   COLORS,
   COMMON_TRACK,
@@ -10,7 +9,6 @@ import {
   HOME_POS,
   SAFE_TRACK_INDICES,
   SAFE_TRACK_SET,
-  TOTAL_STEPS_TO_HOME,
 } from '../constants'
 import {
   calculateRankings,

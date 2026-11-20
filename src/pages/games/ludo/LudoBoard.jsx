@@ -7,10 +7,8 @@ import {
   GAME_PHASES,
   HOME_COLUMNS,
   HOME_POS,
-  SAFE_TRACK_INDICES,
   STAR_TRACK_INDICES,
 } from './constants'
-import { getCommonTrackIndex, getTokenCoordinate } from './engine'
 
 const CELL_SIZE = 50
 
@@ -27,7 +25,7 @@ function getCellPixelCenter(r, c) {
 }
 
 // Arrow markers for Start cells
-function StartArrow({ direction, color }) {
+function StartArrow({ direction }) {
   // direction: 'right' (Red), 'down' (Green), 'left' (Yellow), 'up' (Blue)
   const angle =
     direction === 'right' ? 0 : direction === 'down' ? 90 : direction === 'left' ? 180 : 270
@@ -265,7 +263,7 @@ export default function LudoBoard({
     }
 
     // Apply multi-token offsets so tokens in the same cell don't overlap
-    for (const [key, group] of cellGroups.entries()) {
+    for (const group of cellGroups.values()) {
       const count = group.length
       if (count === 1) {
         group[0].x = group[0].baseX

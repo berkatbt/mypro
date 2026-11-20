@@ -1,6 +1,5 @@
 import {
   BASE_POS,
-  COLOR_START_INDEX,
   HOME_POS,
   SAFE_TRACK_SET,
 } from './constants'

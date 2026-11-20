@@ -2,7 +2,6 @@ import {
   BASE_POS,
   BASE_SLOTS,
   COLOR_CONFIG,
-  COLOR_INDICES,
   COLOR_START_INDEX,
   COLORS,
   COMMON_TRACK,
@@ -12,7 +11,6 @@ import {
   HOME_COLUMNS,
   HOME_POS,
   SAFE_TRACK_SET,
-  TOTAL_STEPS_TO_HOME,
 } from './constants'
 
 // Unbiased Fair RNG using crypto.getRandomValues with rejection sampling
