@@ -37,6 +37,12 @@ export default function Navbar() {
     return location.pathname === "/"
   }
 
+  const scrollToSection = (id) => {
+    if (location.pathname === "/") {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth" })
+    }
+  }
+
   return (
     <motion.header
       initial={{ y: -70, opacity: 0 }}
@@ -83,15 +89,16 @@ export default function Navbar() {
             }
             
             return (
-              <a
+              <Link
                 key={link.href}
-                href={link.href}
+                to={`/${link.href}`}
+                onClick={() => scrollToSection(link.href.slice(1))}
                 className={`text-sm font-medium transition-colors ${
                   active ? "text-slate-300 hover:text-accent" : "text-slate-300 hover:text-accent"
                 }`}
               >
                 {link.label}
-              </a>
+              </Link>
             )
           })}
         </div>
@@ -142,14 +149,17 @@ export default function Navbar() {
                 }
                 
                 return (
-                  <a
+                  <Link
                     key={link.href}
-                    href={link.href}
-                    onClick={() => setOpen(false)}
+                    to={`/${link.href}`}
+                    onClick={() => {
+                      setOpen(false)
+                      scrollToSection(link.href.slice(1))
+                    }}
                     className="rounded-lg px-3 py-3 text-sm text-slate-200 hover:bg-white/10"
                   >
                     {link.label}
-                  </a>
+                  </Link>
                 )
               })}
               <a href="/cv.pdf" download className="px-3 py-3 text-sm text-accent">

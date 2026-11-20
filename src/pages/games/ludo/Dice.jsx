@@ -80,7 +80,12 @@ export default function Dice({
         isWaiting ? 'ludo-dice-waiting' : ''
       }`}
     >
-      <DiceFaces value={value} />
+      <div
+        key={value ?? 'none'}
+        className={`h-full w-full ${value != null && !isRolling ? 'ludo-dice-result' : ''}`}
+      >
+        <DiceFaces value={value} />
+      </div>
     </button>
   )
 }

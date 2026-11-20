@@ -12,9 +12,36 @@ import {
 
 const CELL_SIZE = 50
 
+const FINISHED_SLOTS = {
+  red: [
+    { x: 322, y: 346 },
+    { x: 340, y: 364 },
+    { x: 322, y: 386 },
+    { x: 340, y: 404 },
+  ],
+  green: [
+    { x: 346, y: 322 },
+    { x: 364, y: 340 },
+    { x: 386, y: 322 },
+    { x: 404, y: 340 },
+  ],
+  yellow: [
+    { x: 428, y: 346 },
+    { x: 410, y: 364 },
+    { x: 428, y: 386 },
+    { x: 410, y: 404 },
+  ],
+  blue: [
+    { x: 346, y: 428 },
+    { x: 364, y: 410 },
+    { x: 386, y: 428 },
+    { x: 404, y: 410 },
+  ],
+}
+
 // Star SVG path centered around (0,0)
 const STAR_PATH =
-  'M 0,-11 L 3.2,-3.5 L 11,-2.5 L 5.5,3 L 7,11 L 0,6.8 L -7,11 L -5.5,3 L -11,-2.5 L -3.2,-3.5 Z'
+  'M 0,-8 L 2.4,-2.6 L 8,-1.8 L 4,2.2 L 5.2,8 L 0,5 L -5.2,8 L -4,2.2 L -8,-1.8 L -2.4,-2.6 Z'
 
 // Calculate pixel coordinates (x, y) for any (r, c)
 function getCellPixelCenter(r, c) {
@@ -41,6 +68,9 @@ function StartArrow({ direction }) {
   )
 }
 
+// Rotation per color so home-column chevrons point toward the center
+const HOME_COLUMN_ANGLE = { red: 0, green: 90, yellow: 180, blue: 270 }
+
 // Glossy Pawn Component
 export function LudoPawn({
   token,
@@ -50,6 +80,7 @@ export function LudoPawn({
   scale = 1,
   isSelectable = false,
   isHopping = false,
+  hopIndex = 0,
   onClick,
 }) {
   const config = COLOR_CONFIG[player.color]
@@ -57,9 +88,8 @@ export function LudoPawn({
   return (
     <g
       transform={`translate(${x}, ${y}) scale(${scale})`}
-      className={`ludo-token-group ${isSelectable ? 'selectable' : ''} ${
-        isHopping ? 'ludo-token-hopping' : ''
-      }`}
+      className={`ludo-token-group ${isSelectable ? 'selectable' : ''}`}
+      style={{ pointerEvents: isSelectable ? 'auto' : 'none' }}
       onClick={(e) => {
         if (isSelectable && onClick) {
           e.stopPropagation()
@@ -76,18 +106,23 @@ export function LudoPawn({
         }
       }}
     >
-      {/* Active Selection Glow Ring */}
+      <circle cx="0" cy="-2" r="20" fill="transparent" />
       {isSelectable && (
         <circle
+          className="ludo-select-ring"
           cx="0"
-          cy="0"
-          r="23"
+          cy="-2"
+          r="22"
           fill="none"
           stroke="#ffffff"
-          strokeWidth="3.5"
+          strokeWidth="3"
           strokeDasharray="5 3"
         />
       )}
+      <g
+        key={isHopping ? `hop-${hopIndex}` : 'still'}
+        className={`ludo-token-art ${isHopping ? 'is-hopping' : ''} ${isSelectable ? 'is-selectable' : ''}`}
+      >
 
       {/* Shadow */}
       <ellipse
@@ -155,6 +190,7 @@ export function LudoPawn({
         opacity="0.75"
         style={{ pointerEvents: 'none' }}
       />
+      </g>
     </g>
   )
 }
@@ -199,34 +235,20 @@ export default function LudoBoard({
             player,
             x,
             y,
+            scale: 0.9,
             cellKey,
             isBase: true,
             isHome: false,
           })
           continue
-        } else if (displayPos === HOME_POS) {
-          // Reached Home (7,7) - position in home triangles
-          let hx = 375
-          let hy = 375
-          if (player.color === 'red') {
-            hx = 340
-            hy = 360 + token.id * 8
-          } else if (player.color === 'green') {
-            hx = 360 + token.id * 8
-            hy = 340
-          } else if (player.color === 'yellow') {
-            hx = 410
-            hy = 360 + token.id * 8
-          } else if (player.color === 'blue') {
-            hx = 360 + token.id * 8
-            hy = 410
-          }
+        } else         if (displayPos === HOME_POS) {
+          const slot = FINISHED_SLOTS[player.color][token.id]
           list.push({
             token,
             player,
-            x: hx,
-            y: hy,
-            scale: 0.72,
+            x: slot.x,
+            y: slot.y,
+            scale: 0.62,
             cellKey: `home-${player.color}-${token.id}`,
             isBase: false,
             isHome: true,
@@ -312,8 +334,8 @@ export default function LudoBoard({
   return (
     <div className="ludo-board-wrapper">
       <svg
-        viewBox="0 0 750 750"
-        className="w-full h-full drop-shadow-2xl select-none"
+        viewBox="-18 -18 786 786"
+        className="ludo-board-svg select-none"
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
@@ -361,141 +383,47 @@ export default function LudoBoard({
           ))}
         </defs>
 
-        {/* ── Outer Board Background & Frame ── */}
-        <rect
-          x="0"
-          y="0"
-          width="750"
-          height="750"
-          rx="18"
-          fill="#0f172a"
-        />
+        {/* ── Wooden frame + parchment field ── */}
+        <rect x="-18" y="-18" width="786" height="786" rx="26" fill="#4a2c14" />
+        <rect x="-8" y="-8" width="766" height="766" rx="18" fill="#c9a36a" />
+        <rect x="0" y="0" width="750" height="750" fill="#f7f1e4" />
 
         {/* ── Base Areas (Four 6x6 Corners) ── */}
-        {/* Red Base (Top-Left) */}
-        <g>
-          <rect
-            x="8"
-            y="8"
-            width="284"
-            height="284"
-            rx="14"
-            fill={COLOR_CONFIG.red.hex}
-          />
-          <rect
-            x="45"
-            y="45"
-            width="210"
-            height="210"
-            rx="14"
-            fill="#ffffff"
-          />
-          {/* 4 Token slots */}
-          {BASE_SLOTS.red.map((slot, i) => (
-            <circle
-              key={i}
-              cx={slot.c * CELL_SIZE}
-              cy={slot.r * CELL_SIZE}
-              r="22"
-              fill={COLOR_CONFIG.red.bgHex}
-              stroke={COLOR_CONFIG.red.hex}
-              strokeWidth="3.5"
+        {[
+          { color: 'red', x: 0, y: 0 },
+          { color: 'green', x: 450, y: 0 },
+          { color: 'yellow', x: 450, y: 450 },
+          { color: 'blue', x: 0, y: 450 },
+        ].map((base) => (
+          <g key={base.color}>
+            <rect
+              x={base.x}
+              y={base.y}
+              width="300"
+              height="300"
+              fill={COLOR_CONFIG[base.color].hex}
             />
-          ))}
-        </g>
-
-        {/* Green Base (Top-Right) */}
-        <g>
-          <rect
-            x="458"
-            y="8"
-            width="284"
-            height="284"
-            rx="14"
-            fill={COLOR_CONFIG.green.hex}
-          />
-          <rect
-            x="495"
-            y="45"
-            width="210"
-            height="210"
-            rx="14"
-            fill="#ffffff"
-          />
-          {BASE_SLOTS.green.map((slot, i) => (
-            <circle
-              key={i}
-              cx={slot.c * CELL_SIZE}
-              cy={slot.r * CELL_SIZE}
-              r="22"
-              fill={COLOR_CONFIG.green.bgHex}
-              stroke={COLOR_CONFIG.green.hex}
-              strokeWidth="3.5"
+            <rect
+              x={base.x + 28}
+              y={base.y + 28}
+              width="244"
+              height="244"
+              rx="28"
+              fill="#fffaf3"
             />
-          ))}
-        </g>
-
-        {/* Yellow Base (Bottom-Right) */}
-        <g>
-          <rect
-            x="458"
-            y="458"
-            width="284"
-            height="284"
-            rx="14"
-            fill={COLOR_CONFIG.yellow.hex}
-          />
-          <rect
-            x="495"
-            y="495"
-            width="210"
-            height="210"
-            rx="14"
-            fill="#ffffff"
-          />
-          {BASE_SLOTS.yellow.map((slot, i) => (
-            <circle
-              key={i}
-              cx={slot.c * CELL_SIZE}
-              cy={slot.r * CELL_SIZE}
-              r="22"
-              fill={COLOR_CONFIG.yellow.bgHex}
-              stroke={COLOR_CONFIG.yellow.hex}
-              strokeWidth="3.5"
-            />
-          ))}
-        </g>
-
-        {/* Blue Base (Bottom-Left) */}
-        <g>
-          <rect
-            x="8"
-            y="458"
-            width="284"
-            height="284"
-            rx="14"
-            fill={COLOR_CONFIG.blue.hex}
-          />
-          <rect
-            x="45"
-            y="495"
-            width="210"
-            height="210"
-            rx="14"
-            fill="#ffffff"
-          />
-          {BASE_SLOTS.blue.map((slot, i) => (
-            <circle
-              key={i}
-              cx={slot.c * CELL_SIZE}
-              cy={slot.r * CELL_SIZE}
-              r="22"
-              fill={COLOR_CONFIG.blue.bgHex}
-              stroke={COLOR_CONFIG.blue.hex}
-              strokeWidth="3.5"
-            />
-          ))}
-        </g>
+            {BASE_SLOTS[base.color].map((slot, i) => (
+              <circle
+                key={i}
+                cx={slot.c * CELL_SIZE}
+                cy={slot.r * CELL_SIZE}
+                r="24"
+                fill={COLOR_CONFIG[base.color].bgHex}
+                stroke={COLOR_CONFIG[base.color].hex}
+                strokeWidth="3"
+              />
+            ))}
+          </g>
+        ))}
 
         {/* ── 52 Common Track Cells ── */}
         {COMMON_TRACK.map((cell, idx) => {
@@ -505,7 +433,7 @@ export default function LudoBoard({
           const isBlueStart = idx === 39
           const isStar = STAR_TRACK_INDICES.includes(idx)
 
-          let fillColor = '#ffffff'
+          let fillColor = '#fffdf8'
           let hasStartArrow = false
           let arrowColor = '#ffffff'
           let arrowDir = 'right'
@@ -539,17 +467,17 @@ export default function LudoBoard({
                 width={CELL_SIZE}
                 height={CELL_SIZE}
                 fill={fillColor}
-                stroke="#cbd5e1"
-                strokeWidth="1.2"
+                stroke="#e4d3b0"
+                strokeWidth="1.4"
               />
               {/* Star on Safe Square */}
               {isStar && (
                 <path
                   d={STAR_PATH}
-                  transform={`translate(${cx}, ${cy}) scale(1.3)`}
+                  transform={`translate(${cx}, ${cy})`}
                   fill="#f59e0b"
-                  stroke="#1e293b"
-                  strokeWidth="1.2"
+                  stroke="#7c4a12"
+                  strokeWidth="1"
                 />
               )}
               {/* Start Arrow */}
@@ -563,60 +491,31 @@ export default function LudoBoard({
         })}
 
         {/* ── Home Columns (5 Colored Cells per Color) ── */}
-        {/* Red Home Column (Row 7, Col 1..5) */}
-        {HOME_COLUMNS.red.map((cell, i) => (
-          <rect
-            key={`red-col-${i}`}
-            x={cell.c * CELL_SIZE}
-            y={cell.r * CELL_SIZE}
-            width={CELL_SIZE}
-            height={CELL_SIZE}
-            fill={COLOR_CONFIG.red.hex}
-            stroke="#b91c1c"
-            strokeWidth="1.2"
-          />
-        ))}
-
-        {/* Green Home Column (Row 1..5, Col 7) */}
-        {HOME_COLUMNS.green.map((cell, i) => (
-          <rect
-            key={`green-col-${i}`}
-            x={cell.c * CELL_SIZE}
-            y={cell.r * CELL_SIZE}
-            width={CELL_SIZE}
-            height={CELL_SIZE}
-            fill={COLOR_CONFIG.green.hex}
-            stroke="#047857"
-            strokeWidth="1.2"
-          />
-        ))}
-
-        {/* Yellow Home Column (Row 7, Col 13..9) */}
-        {HOME_COLUMNS.yellow.map((cell, i) => (
-          <rect
-            key={`yellow-col-${i}`}
-            x={cell.c * CELL_SIZE}
-            y={cell.r * CELL_SIZE}
-            width={CELL_SIZE}
-            height={CELL_SIZE}
-            fill={COLOR_CONFIG.yellow.hex}
-            stroke="#b45309"
-            strokeWidth="1.2"
-          />
-        ))}
-
-        {/* Blue Home Column (Row 13..9, Col 7) */}
-        {HOME_COLUMNS.blue.map((cell, i) => (
-          <rect
-            key={`blue-col-${i}`}
-            x={cell.c * CELL_SIZE}
-            y={cell.r * CELL_SIZE}
-            width={CELL_SIZE}
-            height={CELL_SIZE}
-            fill={COLOR_CONFIG.blue.hex}
-            stroke="#1d4ed8"
-            strokeWidth="1.2"
-          />
+        {Object.entries(HOME_COLUMNS).map(([color, cells]) => (
+          <g key={`home-col-${color}`}>
+            {cells.map((cell, i) => {
+              const cx = cell.c * CELL_SIZE + CELL_SIZE / 2
+              const cy = cell.r * CELL_SIZE + CELL_SIZE / 2
+              return (
+                <g key={`${color}-col-${i}`}>
+                  <rect
+                    x={cell.c * CELL_SIZE}
+                    y={cell.r * CELL_SIZE}
+                    width={CELL_SIZE}
+                    height={CELL_SIZE}
+                    fill={COLOR_CONFIG[color].hex}
+                    stroke={COLOR_CONFIG[color].accentHex}
+                    strokeWidth="1.2"
+                  />
+                  <g
+                    transform={`translate(${cx}, ${cy}) rotate(${HOME_COLUMN_ANGLE[color]})`}
+                  >
+                    <polygon points="-4.5,-4 4,0 -4.5,4" fill="#ffffff" opacity="0.9" />
+                  </g>
+                </g>
+              )
+            })}
+          </g>
         ))}
 
         {/* ── Center 3x3 Home Area (x: 300..450, y: 300..450) ── */}
@@ -653,16 +552,16 @@ export default function LudoBoard({
           <circle
             cx="375"
             cy="375"
-            r="16"
+            r="18"
             fill="#ffffff"
             stroke="#f59e0b"
             strokeWidth="2.5"
           />
           <text
             x="375"
-            y="380"
+            y="381"
             textAnchor="middle"
-            fontSize="14"
+            fontSize="16"
             fill="#f59e0b"
             fontWeight="bold"
           >
@@ -671,7 +570,15 @@ export default function LudoBoard({
         </g>
 
         {/* ── Tokens Layer ── */}
-        {tokenVisuals.map((item) => {
+        {[...tokenVisuals]
+          .sort((a, b) => {
+            const aSelectable =
+              canSelect && a.player.id === activePlayer?.id && legalMoves.includes(a.token.id)
+            const bSelectable =
+              canSelect && b.player.id === activePlayer?.id && legalMoves.includes(b.token.id)
+            return Number(aSelectable) - Number(bSelectable)
+          })
+          .map((item) => {
           const isSelectable =
             canSelect &&
             item.player.id === activePlayer.id &&
@@ -692,6 +599,7 @@ export default function LudoBoard({
               scale={item.scale || 1}
               isSelectable={isSelectable}
               isHopping={isHopping}
+              hopIndex={animatingToken ? animatingToken.hopIndex : 0}
               onClick={onSelectToken}
             />
           )

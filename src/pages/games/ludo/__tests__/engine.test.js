@@ -159,6 +159,8 @@ describe('Ludo Game Rules (Section C & I)', () => {
     expect(state.consecutiveSixes).toBe(0)
     expect(state.activePlayerIndex).toBe(1) // Next player
     expect(state.phase).toBe(GAME_PHASES.WAIT_ROLL)
+    // Regression: the forfeited 6 must not leak into the next player's dice display
+    expect(state.currentDice).toBeNull()
   })
 
   it('requires exact roll to enter home (pos 56)', () => {

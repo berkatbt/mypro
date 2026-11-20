@@ -16,7 +16,10 @@ export function isPositionUnderThreat(trackIdx, playerColor, allPlayers) {
         const oppTrackIdx = getCommonTrackIndex(opp.color, oppToken.pos)
         // Distance from opponent to our position clockwise
         const dist = (trackIdx - oppTrackIdx + 52) % 52
-        if (dist >= 1 && dist <= 6) {
+        // Opponent turns into their home column after pos 50, so they cannot
+        // threaten squares beyond the steps they still have on the main track.
+        const stepsLeftOnTrack = 50 - oppToken.pos
+        if (dist >= 1 && dist <= 6 && dist <= stepsLeftOnTrack) {
           return true
         }
       }

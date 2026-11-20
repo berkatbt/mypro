@@ -10,11 +10,13 @@ import {
 } from 'lucide-react'
 
 import {
+  COLOR_CONFIG,
   GAME_PHASES,
 } from './ludo/constants'
 import {
   createInitialState,
   gameReducer,
+  resumeSavedState,
 } from './ludo/engine'
 import { chooseBotMove } from './ludo/bot'
 import { ludoAudio } from './ludo/audio'
@@ -34,6 +36,20 @@ import Confetti from './ludo/Confetti'
 import { GameOverModal, HelpModal, SettingsModal, SetupModal } from './ludo/Modals'
 import './ludo/ludo.css'
 
+// Placeholder shown when a board color has no player in this session
+function EmptyColorPanel({ color }) {
+  const cfg = COLOR_CONFIG[color]
+  return (
+    <div className="flex items-center justify-center gap-1.5 rounded-2xl border border-dashed border-white/[0.07] bg-white/[0.02] px-3 py-2.5 text-[10px] font-semibold text-slate-600">
+      <span
+        className="h-2.5 w-2.5 rounded-full opacity-25"
+        style={{ backgroundColor: cfg.hex }}
+      />
+      {cfg.name} tidak dipakai
+    </div>
+  )
+}
+
 export default function Ludo() {
   const reduceMotion = useReducedMotion()
 
@@ -43,10 +59,8 @@ export default function Ludo() {
 
   // ── Game State ──────────────────────────────────────────────────────
   const [state, setState] = useState(() => {
-    const saved = loadSavedGame()
-    if (saved && saved.phase !== GAME_PHASES.GAME_OVER) {
-      return saved
-    }
+    const saved = resumeSavedState(loadSavedGame())
+    if (saved) return saved
     return createInitialState({
       mode: 'vsBot',
       playerCount: 2,
@@ -70,8 +84,11 @@ export default function Ludo() {
 
   // Refs for timers & cleanup
   const timersRef = useRef(new Set())
-  const botThinkingRef = useRef(false)
   const stateRef = useRef(state)
+  const epochRef = useRef(0)
+  const rollLockRef = useRef(false)
+  const moveLockRef = useRef(false)
+  const resultRef = useRef(null)
 
   useEffect(() => {
     stateRef.current = state
@@ -84,6 +101,11 @@ export default function Ludo() {
     }, ms)
     timersRef.current.add(id)
     return id
+  }, [])
+
+  const cancelTimer = useCallback((id) => {
+    clearTimeout(id)
+    timersRef.current.delete(id)
   }, [])
 
   const clearAllTimers = useCallback(() => {
@@ -129,22 +151,27 @@ export default function Ludo() {
 
   // Handle Game Over
   useEffect(() => {
-    if (state.phase === GAME_PHASES.GAME_OVER) {
-      setIsGameOverOpen(true)
-      ludoAudio.victory()
-      ludoHaptics.victory()
-
-      const isHumanWinner =
-        state.winner != null && !state.players[state.winner]?.isBot
-      setStats(
-        updateStats({
-          gamesPlayed: 1,
-          gamesWon: isHumanWinner ? 1 : 0,
-          totalCaptures: state.stats.captures,
-          totalHome: state.players.reduce((sum, p) => sum + p.tokensAtHome, 0),
-        })
-      )
+    if (state.phase !== GAME_PHASES.GAME_OVER) {
+      resultRef.current = null
+      return
     }
+    if (resultRef.current === state.winner) return
+    resultRef.current = state.winner
+
+    setIsGameOverOpen(true)
+    ludoAudio.victory()
+    ludoHaptics.victory()
+
+    const isHumanWinner =
+      state.winner != null && !state.players[state.winner]?.isBot
+    setStats(
+      updateStats({
+        gamesPlayed: 1,
+        gamesWon: isHumanWinner ? 1 : 0,
+        totalCaptures: state.stats.captures,
+        totalHome: state.players.reduce((sum, p) => sum + p.tokensAtHome, 0),
+      })
+    )
   }, [state.phase, state.winner, state.players, state.stats.captures])
 
   // ── Actions ─────────────────────────────────────────────────────────
@@ -152,32 +179,60 @@ export default function Ludo() {
   // Roll Dice Action
   const handleRollDice = useCallback(() => {
     const currentState = stateRef.current
+    if (rollLockRef.current || moveLockRef.current) return
     if (currentState.phase !== GAME_PHASES.WAIT_ROLL || isRolling) return
 
+    rollLockRef.current = true
+    const epoch = epochRef.current
     setIsRolling(true)
     ludoAudio.diceRoll()
 
     const rollDuration = reduceMotion ? 100 : 700 / settings.animationSpeed
 
     schedule(() => {
+      rollLockRef.current = false
+      if (epochRef.current !== epoch) return
       setIsRolling(false)
-      const nextState = gameReducer(currentState, { type: 'ROLL' })
+      const latest = stateRef.current
+      if (latest.phase !== GAME_PHASES.WAIT_ROLL) return
+      const nextState = gameReducer(latest, { type: 'ROLL' })
 
       if (nextState.cancellationReason === 'THREE_SIXES') {
-        showBanner('Tiga angka 6 berturut-turut! Giliran batal ❌', 'warning')
+        showBanner('Tiga angka 6 berturut-turut! Giliran batal', 'warning')
         ludoAudio.turnCancelled()
-      } else if (nextState.currentDice === 6) {
-        showBanner('Dadu 6! Dapat lemparan lagi 🎲', 'success', 1600)
+      } else if (nextState.currentDice === 6 && nextState.legalMoves.length > 0) {
+        showBanner('Dadu 6! Dapat lemparan lagi', 'success', 1600)
       }
 
       setState(nextState)
     }, rollDuration)
   }, [isRolling, reduceMotion, settings.animationSpeed, schedule, showBanner])
 
+  const announceMoveResult = useCallback(
+    (finishedState) => {
+      const captured = finishedState.lastMove?.captured
+      if (captured) {
+        const label =
+          captured.count > 1
+            ? `${captured.count} pion tertangkap! Bonus lemparan`
+            : `Pion ${captured.color} tertangkap! Bonus lemparan`
+        showBanner(label, 'success')
+        ludoAudio.capture()
+        ludoHaptics.capture()
+      } else if (finishedState.lastMove?.reachedHome) {
+        showBanner('Pion masuk ke Home! Bonus lemparan', 'success')
+        ludoAudio.home()
+        ludoHaptics.home()
+      }
+    },
+    [showBanner]
+  )
+
   // Select Token Move Action
   const handleSelectToken = useCallback(
     (tokenId) => {
       const currentState = stateRef.current
+      if (moveLockRef.current || rollLockRef.current) return
       if (
         currentState.phase !== GAME_PHASES.WAIT_SELECT &&
         currentState.phase !== GAME_PHASES.AUTO_MOVE
@@ -187,44 +242,42 @@ export default function Ludo() {
 
       const activePlayer = currentState.players[currentState.activePlayerIndex]
       const nextState = gameReducer(currentState, { type: 'SELECT_TOKEN', tokenId })
-      if (!nextState.lastMove) return
+      if (nextState === currentState || !nextState.lastMove) return
 
+      moveLockRef.current = true
+      const epoch = epochRef.current
       setState(nextState)
 
-      // Animate Movement along path
       const path = nextState.lastMove.path
       const fromPos = nextState.lastMove.fromPos
       const isExitingBase = fromPos === -1
+
+      const finishMove = () => {
+        moveLockRef.current = false
+        if (epochRef.current !== epoch) return
+        setAnimatingToken(null)
+        const finishedState = gameReducer(nextState, { type: 'FINISH_MOVE' })
+        announceMoveResult(finishedState)
+        setState(finishedState)
+      }
 
       if (isExitingBase) {
         ludoAudio.releaseFromBase()
       }
 
       if (reduceMotion || settings.animationSpeed >= 2) {
-        // Direct finish for reduced motion
-        const finishedState = gameReducer(nextState, { type: 'FINISH_MOVE' })
-        if (finishedState.lastMove?.captured) {
-          showBanner(
-            `⚔️ Pion ${finishedState.lastMove.captured.color} berhasil ditangkap! Bonus lemparan!`,
-            'success'
-          )
-          ludoAudio.capture()
-          ludoHaptics.capture()
-        } else if (finishedState.lastMove?.reachedHome) {
-          showBanner('👑 Pion masuk ke Home! Bonus lemparan!', 'success')
-          ludoAudio.home()
-          ludoHaptics.home()
-        }
-        setAnimatingToken(null)
-        setState(finishedState)
+        finishMove()
         return
       }
 
-      // Step-by-step hopping animation
-      const stepInterval = Math.max(80, 150 / settings.animationSpeed)
+      const stepInterval = Math.max(90, 160 / settings.animationSpeed)
       let stepIdx = 0
 
       const hopStep = () => {
+        if (epochRef.current !== epoch) {
+          moveLockRef.current = false
+          return
+        }
         if (stepIdx < path.length) {
           const currentPos = path[stepIdx]
           setAnimatingToken({
@@ -237,32 +290,13 @@ export default function Ludo() {
           stepIdx++
           schedule(hopStep, stepInterval)
         } else {
-          // Finished steps
-          schedule(() => {
-            setAnimatingToken(null)
-            const finishedState = gameReducer(nextState, { type: 'FINISH_MOVE' })
-
-            if (finishedState.lastMove?.captured) {
-              showBanner(
-                `⚔️ Pion ${finishedState.lastMove.captured.color} tertangkap! Bonus lemparan!`,
-                'success'
-              )
-              ludoAudio.capture()
-              ludoHaptics.capture()
-            } else if (finishedState.lastMove?.reachedHome) {
-              showBanner('👑 Pion masuk ke Home! Bonus lemparan!', 'success')
-              ludoAudio.home()
-              ludoHaptics.home()
-            }
-
-            setState(finishedState)
-          }, 100)
+          schedule(finishMove, 90)
         }
       }
 
       hopStep()
     },
-    [reduceMotion, settings.animationSpeed, schedule, showBanner]
+    [announceMoveResult, reduceMotion, settings.animationSpeed, schedule]
   )
 
   // ── Automation & Turn Cycle ─────────────────────────────────────────
@@ -275,7 +309,7 @@ export default function Ludo() {
       const id = schedule(() => {
         handleSelectToken(singleMove)
       }, delay)
-      return () => clearTimeout(id)
+      return () => cancelTimer(id)
     }
   }, [
     state.phase,
@@ -285,60 +319,62 @@ export default function Ludo() {
     settings.animationSpeed,
     handleSelectToken,
     schedule,
+    cancelTimer,
   ])
 
   // Skip turn when no legal moves available
   useEffect(() => {
     if (state.phase === GAME_PHASES.RESOLVE && !isRolling) {
-      showBanner('Tidak ada langkah legal. Giliran dilewati ⏩', 'info', 1600)
+      showBanner('Tidak ada langkah. Giliran dilewati', 'info', 1600)
       const delay = Math.max(600, 800 / settings.animationSpeed)
       const id = schedule(() => {
-        setState((prev) => gameReducer(prev, { type: 'AUTO_PASS' }))
+        setState((prev) =>
+          prev.phase === GAME_PHASES.RESOLVE
+            ? gameReducer(prev, { type: 'AUTO_PASS' })
+            : prev
+        )
       }, delay)
-      return () => clearTimeout(id)
+      return () => cancelTimer(id)
     }
-  }, [state.phase, isRolling, settings.animationSpeed, schedule, showBanner])
+  }, [state.phase, isRolling, settings.animationSpeed, schedule, cancelTimer, showBanner])
 
   // Bot Turn Automation (Natural Thinking Delay)
   useEffect(() => {
     const activePlayer = state.players[state.activePlayerIndex]
-    if (!activePlayer || !activePlayer.isBot || animatingToken || isRolling) {
-      botThinkingRef.current = false
+    if (!activePlayer?.isBot || animatingToken || isRolling) return
+    if (
+      state.phase !== GAME_PHASES.WAIT_ROLL &&
+      state.phase !== GAME_PHASES.WAIT_SELECT
+    ) {
       return
     }
 
-    if (state.phase === GAME_PHASES.WAIT_ROLL && !botThinkingRef.current) {
-      botThinkingRef.current = true
-      const thinkTime = 700 + Math.random() * 500
-      const id = schedule(() => {
-        botThinkingRef.current = false
-        handleRollDice()
-      }, thinkTime / settings.animationSpeed)
-      return () => clearTimeout(id)
-    }
+    const thinkTime =
+      (state.phase === GAME_PHASES.WAIT_ROLL ? 650 : 520) + Math.random() * 420
+    const phase = state.phase
+    const dice = state.currentDice
+    const difficulty = activePlayer.botDifficulty
+    const snapshot = state
 
-    if (state.phase === GAME_PHASES.WAIT_SELECT && !botThinkingRef.current) {
-      botThinkingRef.current = true
-      const thinkTime = 600 + Math.random() * 500
-      const id = schedule(() => {
-        botThinkingRef.current = false
-        const chosenToken = chooseBotMove(
-          state,
-          state.currentDice,
-          activePlayer.botDifficulty
-        )
-        if (chosenToken != null) {
-          handleSelectToken(chosenToken)
-        }
-      }, thinkTime / settings.animationSpeed)
-      return () => clearTimeout(id)
-    }
+    const id = schedule(() => {
+      if (phase === GAME_PHASES.WAIT_ROLL) {
+        handleRollDice()
+        return
+      }
+      const chosenToken = chooseBotMove(snapshot, dice, difficulty)
+      if (chosenToken != null) {
+        handleSelectToken(chosenToken)
+      }
+    }, thinkTime / settings.animationSpeed)
+
+    return () => cancelTimer(id)
   }, [
     state,
     animatingToken,
     isRolling,
     settings.animationSpeed,
     schedule,
+    cancelTimer,
     handleRollDice,
     handleSelectToken,
   ])
@@ -364,7 +400,7 @@ export default function Ludo() {
       return
     }
 
-    let remaining = 15
+    let remaining = settings.turnTimeLimit ?? 15
     setTimerSeconds(remaining)
 
     const interval = setInterval(() => {
@@ -390,6 +426,7 @@ export default function Ludo() {
     return () => clearInterval(interval)
   }, [
     settings.turnTimer,
+    settings.turnTimeLimit,
     state.activePlayerIndex,
     state.phase,
     state.players,
@@ -400,8 +437,13 @@ export default function Ludo() {
   // Start New Game Handler
   const handleStartNewGame = useCallback(
     ({ mode, playerCount, humanColor, botDifficulty }) => {
+      epochRef.current += 1
+      rollLockRef.current = false
+      moveLockRef.current = false
       clearAllTimers()
       clearSavedGame()
+      setIsRolling(false)
+      setAnimatingToken(null)
       const newState = createInitialState({
         mode,
         playerCount,
@@ -412,15 +454,20 @@ export default function Ludo() {
       setState(newState)
       setIsSetupOpen(false)
       setIsGameOverOpen(false)
-      showBanner('Permainan Ludo dimulai! Selamat bermain 🎲', 'success', 2000)
+      showBanner('Permainan baru dimulai', 'success', 2000)
     },
     [clearAllTimers, settings, showBanner]
   )
 
   // Reset Current Round
   const handleResetGame = useCallback(() => {
+    epochRef.current += 1
+    rollLockRef.current = false
+    moveLockRef.current = false
     clearAllTimers()
     clearSavedGame()
+    setIsRolling(false)
+    setAnimatingToken(null)
     setState((prev) =>
       createInitialState({
         mode: prev.mode,
@@ -430,7 +477,7 @@ export default function Ludo() {
         options: settings,
       })
     )
-    showBanner('Permainan diulang dari awal.', 'info', 1800)
+    showBanner('Permainan diulang dari awal', 'info', 1800)
   }, [clearAllTimers, settings, showBanner])
 
   // ── Layout Players by Corner ────────────────────────────────────────
@@ -443,19 +490,60 @@ export default function Ludo() {
     return map
   }, [state.players])
 
+  const activePlayer = state.players[state.activePlayerIndex]
+  const turnHint = (() => {
+    if (!activePlayer || state.phase === GAME_PHASES.GAME_OVER) return 'Permainan selesai'
+    const who = activePlayer.isBot
+      ? activePlayer.name
+      : state.mode === 'passAndPlay'
+      ? `Giliran ${activePlayer.name}`
+      : 'Giliranmu'
+    if (isRolling) return `${who} melempar dadu`
+    if (state.phase === GAME_PHASES.WAIT_ROLL) {
+      return activePlayer.isBot ? `${who} sedang berpikir` : `${who} — ketuk dadu`
+    }
+    if (state.phase === GAME_PHASES.WAIT_SELECT) {
+      return activePlayer.isBot ? `${who} memilih pion` : `${who} — pilih pion yang menyala`
+    }
+    if (state.phase === GAME_PHASES.AUTO_MOVE || state.phase === GAME_PHASES.MOVING) {
+      return 'Pion bergerak'
+    }
+    if (state.phase === GAME_PHASES.RESOLVE) return 'Tidak ada langkah, giliran dilewati'
+    return who
+  })()
+
+  // Render a player panel, or a subtle placeholder when the color is not in use
+  const renderPlayerPanel = (color) => {
+    const player = playerByColor[color]
+    if (!player) return <EmptyColorPanel key={color} color={color} />
+
+    const isActive = state.players[state.activePlayerIndex]?.color === color
+    return (
+      <PlayerPanel
+        key={color}
+        player={player}
+        isActive={isActive}
+        phase={state.phase}
+        currentDice={state.currentDice}
+        isRolling={isRolling}
+        timerSeconds={isActive ? timerSeconds : null}
+        onRoll={handleRollDice}
+      />
+    )
+  }
+
   return (
-    <main className="relative min-h-[100svh] w-full overflow-hidden bg-slate-950 text-slate-100 flex flex-col items-center">
-      {/* Background ambient lighting */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+    <main className="ludo-screen relative min-h-[100svh] w-full text-slate-100">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute top-1/4 -left-40 h-96 w-96 rounded-full bg-red-600/15 blur-[120px]" />
         <div className="absolute top-1/4 -right-40 h-96 w-96 rounded-full bg-emerald-600/15 blur-[120px]" />
         <div className="absolute bottom-1/4 -right-40 h-96 w-96 rounded-full bg-amber-600/15 blur-[120px]" />
         <div className="absolute bottom-1/4 -left-40 h-96 w-96 rounded-full bg-blue-600/15 blur-[120px]" />
       </div>
 
-      <div className="relative mx-auto flex w-full max-w-[560px] flex-col items-center px-3 pt-20 pb-5">
+      <div className="ludo-shell relative mx-auto flex w-full max-w-[560px] flex-col items-stretch gap-2 px-3 pt-20 pb-8">
         {/* ── Top Header Navigation Bar ── */}
-        <header className="relative z-30 flex w-full items-center justify-between gap-2 mb-2">
+        <header className="relative z-30 flex w-full shrink-0 items-center justify-between gap-2">
           <Link
             to="/games"
             className="flex h-9 items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.06] px-3 text-[11px] font-semibold text-slate-300 backdrop-blur transition-colors hover:bg-white/10 hover:text-white"
@@ -502,15 +590,15 @@ export default function Ludo() {
         </header>
 
         {/* ── Toast Notification Banner ── */}
-        <div className="h-7 w-full flex items-center justify-center mb-1">
-          <AnimatePresence>
-            {banner && (
+        <div className="flex h-8 w-full shrink-0 items-center justify-center">
+          <AnimatePresence mode="wait">
+            {banner ? (
               <motion.div
                 key={banner.id}
                 initial={{ opacity: 0, y: -6, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -6, scale: 0.95 }}
-                className={`rounded-full px-3 py-1 text-xs font-bold shadow-md border ${
+                exit={{ opacity: 0, y: -4, scale: 0.95 }}
+                className={`max-w-full truncate rounded-full border px-3 py-1 text-xs font-bold shadow-md ${
                   banner.type === 'success'
                     ? 'border-emerald-400/40 bg-emerald-500/20 text-emerald-200'
                     : banner.type === 'warning'
@@ -520,51 +608,28 @@ export default function Ludo() {
               >
                 {banner.text}
               </motion.div>
+            ) : (
+              <motion.p
+                key={turnHint}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="truncate text-xs font-semibold text-slate-300"
+              >
+                {turnHint}
+              </motion.p>
             )}
           </AnimatePresence>
         </div>
 
         {/* ── Top Player Panels (Red & Green) ── */}
-        <div className="grid w-full grid-cols-2 gap-2 mb-2">
-          {playerByColor.red ? (
-            <PlayerPanel
-              player={playerByColor.red}
-              isActive={state.players[state.activePlayerIndex]?.color === 'red'}
-              phase={state.phase}
-              currentDice={state.currentDice}
-              isRolling={isRolling}
-              timerSeconds={
-                state.players[state.activePlayerIndex]?.color === 'red'
-                  ? timerSeconds
-                  : null
-              }
-              onRoll={handleRollDice}
-            />
-          ) : (
-            <div />
-          )}
-
-          {playerByColor.green ? (
-            <PlayerPanel
-              player={playerByColor.green}
-              isActive={state.players[state.activePlayerIndex]?.color === 'green'}
-              phase={state.phase}
-              currentDice={state.currentDice}
-              isRolling={isRolling}
-              timerSeconds={
-                state.players[state.activePlayerIndex]?.color === 'green'
-                  ? timerSeconds
-                  : null
-              }
-              onRoll={handleRollDice}
-            />
-          ) : (
-            <div />
-          )}
+        <div className="grid w-full shrink-0 grid-cols-2 gap-2">
+          {renderPlayerPanel('red')}
+          {renderPlayerPanel('green')}
         </div>
 
         {/* ── The 15x15 SVG Ludo Board ── */}
-        <div className="w-full flex justify-center items-center my-auto">
+        <div className="ludo-board-stage">
           <LudoBoard
             state={state}
             animatingToken={animatingToken}
@@ -573,42 +638,9 @@ export default function Ludo() {
         </div>
 
         {/* ── Bottom Player Panels (Blue & Yellow) ── */}
-        <div className="grid w-full grid-cols-2 gap-2 mt-2">
-          {playerByColor.blue ? (
-            <PlayerPanel
-              player={playerByColor.blue}
-              isActive={state.players[state.activePlayerIndex]?.color === 'blue'}
-              phase={state.phase}
-              currentDice={state.currentDice}
-              isRolling={isRolling}
-              timerSeconds={
-                state.players[state.activePlayerIndex]?.color === 'blue'
-                  ? timerSeconds
-                  : null
-              }
-              onRoll={handleRollDice}
-            />
-          ) : (
-            <div />
-          )}
-
-          {playerByColor.yellow ? (
-            <PlayerPanel
-              player={playerByColor.yellow}
-              isActive={state.players[state.activePlayerIndex]?.color === 'yellow'}
-              phase={state.phase}
-              currentDice={state.currentDice}
-              isRolling={isRolling}
-              timerSeconds={
-                state.players[state.activePlayerIndex]?.color === 'yellow'
-                  ? timerSeconds
-                  : null
-              }
-              onRoll={handleRollDice}
-            />
-          ) : (
-            <div />
-          )}
+        <div className="grid w-full shrink-0 grid-cols-2 gap-2">
+          {renderPlayerPanel('blue')}
+          {renderPlayerPanel('yellow')}
         </div>
       </div>
 
@@ -639,6 +671,10 @@ export default function Ludo() {
         settings={settings}
         onUpdateSettings={(newVals) => {
           setSettings((prev) => ({ ...prev, ...newVals }))
+          // Mirror rules into the running game so changes apply immediately
+          setState((prev) =>
+            prev ? { ...prev, options: { ...prev.options, ...newVals } } : prev
+          )
         }}
         onResetGame={handleResetGame}
         onNewGameMenu={() => {

@@ -90,8 +90,9 @@ export function createPlayerList({
       COLORS[(startIdx + 2) % 4],
     ]
   } else {
-    // 4 players in standard clockwise order starting from red
-    activeColors = ['red', 'green', 'yellow', 'blue']
+    // 4 players, clockwise, starting from the chosen color so that player moves first
+    const startIdx = COLORS.indexOf(humanColor)
+    activeColors = [0, 1, 2, 3].map((step) => COLORS[(startIdx + step) % 4])
   }
 
   return activeColors.map((color, index) => {
@@ -278,7 +279,7 @@ export function gameReducer(state, action, rng = defaultRng) {
         return {
           ...state,
           phase: GAME_PHASES.WAIT_ROLL,
-          currentDice: dice,
+          currentDice: null,
           consecutiveSixes: 0,
           legalMoves: [],
           lastMove: null,
@@ -369,7 +370,7 @@ export function gameReducer(state, action, rng = defaultRng) {
       currentToken.pos = toPos
       currentToken.stepCount += toPos === 0 && state.lastMove.fromPos === BASE_POS ? 1 : state.currentDice
 
-      let capturedInfo = null
+      const capturedList = []
       let bonusRoll = state.currentDice === 6 // 6 gives another roll
 
       // Check capture if landed on common track (0..50)
@@ -378,29 +379,33 @@ export function gameReducer(state, action, rng = defaultRng) {
         const isSafeSquare = SAFE_TRACK_SET.has(landingTrackIdx)
 
         if (!isSafeSquare) {
-          // Look for opponent tokens on the same track index
+          // Every opponent token on this square is sent home. A stack is not a shield
+          // unless the block rule already prevented the landing.
           for (const opp of players) {
             if (opp.id === currentPlayer.id) continue
             for (const oppToken of opp.tokens) {
               if (oppToken.pos >= 0 && oppToken.pos <= 50) {
                 const oppTrackIdx = getCommonTrackIndex(opp.color, oppToken.pos)
                 if (oppTrackIdx === landingTrackIdx) {
-                  // Capture opponent token! Send back to base
                   oppToken.pos = BASE_POS
-                  capturedInfo = {
+                  capturedList.push({
                     playerId: opp.id,
                     color: opp.color,
                     tokenId: oppToken.id,
-                  }
-                  bonusRoll = true // Capturing gives bonus roll
-                  break
+                  })
                 }
               }
             }
-            if (capturedInfo) break
+          }
+          if (capturedList.length > 0) {
+            bonusRoll = true
           }
         }
       }
+
+      const capturedInfo = capturedList.length
+        ? { ...capturedList[0], count: capturedList.length }
+        : null
 
       // Check if token reached Home (56)
       if (toPos === HOME_POS) {
@@ -439,7 +444,7 @@ export function gameReducer(state, action, rng = defaultRng) {
           },
           stats: {
             ...state.stats,
-            captures: state.stats.captures + (capturedInfo ? 1 : 0),
+            captures: state.stats.captures + capturedList.length,
           },
         }
       }
@@ -460,7 +465,7 @@ export function gameReducer(state, action, rng = defaultRng) {
           },
           stats: {
             ...state.stats,
-            captures: state.stats.captures + (capturedInfo ? 1 : 0),
+            captures: state.stats.captures + capturedList.length,
           },
         }
       }
@@ -484,7 +489,7 @@ export function gameReducer(state, action, rng = defaultRng) {
         stats: {
           ...state.stats,
           turnsCount: state.stats.turnsCount + 1,
-          captures: state.stats.captures + (capturedInfo ? 1 : 0),
+          captures: state.stats.captures + capturedList.length,
         },
       }
     }
@@ -516,6 +521,27 @@ export function gameReducer(state, action, rng = defaultRng) {
     default:
       return state
   }
+}
+
+// Recover a saved session that was interrupted mid-animation
+export function resumeSavedState(saved) {
+  if (!saved || !Array.isArray(saved.players) || saved.players.length === 0) {
+    return null
+  }
+  if (saved.phase === GAME_PHASES.GAME_OVER) return null
+  if (saved.phase === GAME_PHASES.MOVING) {
+    if (!saved.lastMove) {
+      return {
+        ...saved,
+        phase: GAME_PHASES.WAIT_ROLL,
+        currentDice: null,
+        legalMoves: [],
+        lastMove: null,
+      }
+    }
+    return gameReducer(saved, { type: 'FINISH_MOVE' })
+  }
+  return saved
 }
 
 // Get index of the next player who has not finished

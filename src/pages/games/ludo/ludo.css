@@ -13,17 +13,29 @@
   touch-action: manipulation;
 }
 
+.ludo-board-svg {
+  filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.45));
+}
+
 /* Glossy Token Effects */
 .ludo-token-group {
-  cursor: pointer;
+  cursor: default;
   transform-box: fill-box;
   transform-origin: center;
   transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .ludo-token-group.selectable {
+  cursor: pointer;
   filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.85)) drop-shadow(0 0 12px currentColor);
+}
+
+/* Pulse lives on the inner art group so it never overrides the outer
+   SVG transform attribute that positions the pawn on the board */
+.ludo-token-art.is-selectable {
   animation: ludoPawnPulse 1.2s ease-in-out infinite alternate;
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
 @keyframes ludoPawnPulse {
@@ -35,7 +47,23 @@
   }
 }
 
-/* Hop animation for moving tokens */
+/* Dashed selection ring slowly rotates around the pawn */
+.ludo-select-ring {
+  animation: ludoSelectRingSpin 3s linear infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes ludoSelectRingSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Hop animation for moving tokens (re-triggered per hop via React key) */
 @keyframes ludoHop {
   0% {
     transform: translateY(0) scale(1);
@@ -48,8 +76,10 @@
   }
 }
 
-.ludo-token-hopping {
-  animation: ludoHop 0.15s cubic-bezier(0.25, 1, 0.5, 1);
+.ludo-token-art.is-hopping {
+  animation: ludoHop 0.18s cubic-bezier(0.25, 1, 0.5, 1);
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
 /* Pulsing Turn Ring around active player */
@@ -111,6 +141,20 @@
 
 .ludo-dice-rolling {
   animation: diceRollSpin 0.7s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+/* Result pop when the final dice value lands */
+.ludo-dice-result {
+  animation: diceResultPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes diceResultPop {
+  0% {
+    transform: scale(1.35) rotate(-12deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
 }
 
 @keyframes diceRollSpin {
