@@ -40,16 +40,23 @@ const gameCategories = [
   {
     id: 4,
     title: "Arcade Classics",
-    description: "Nostalgia dengan game arcade klasik yang tak lekang waktu",
-    icon: "🕹️",
-    comingSoon: true,
-    games: [],
+    description: "Nostalgia dengan game papan dan arcade klasik yang seru dimainkan bersama",
+    icon: "🎲",
+    comingSoon: false,
+    games: [
+      {
+        name: "Ludo",
+        path: "/games/ludo",
+        tag: "Baru 🔥",
+        desc: "Mainkan Ludo klasik lawan Bot pintar atau bersama teman (Pass & Play)!",
+      },
+    ],
   },
 ]
 
 const stats = [
   { icon: Gamepad2, value: "04", label: "Categories" },
-  { icon: Trophy, value: "01", label: "Games Available" },
+  { icon: Trophy, value: "02", label: "Games Available" },
   { icon: Star, value: "∞", label: "Fun Level" },
 ]
 
